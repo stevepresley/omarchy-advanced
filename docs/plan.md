@@ -819,7 +819,31 @@ Implementing partition selection to allow installing to specific partitions inst
   - User gets single session option, no picker confusion
   - Other session files kept with Hidden=true as defensive redundancy
 - **Status**: ✅ FIXED (commit 4a75e3a)
-- **Next step**: Rebuild ISO with fix and test fresh install flow
+- **Testing Status**: PENDING
+  - Fix was deployed to old VM via deploy-to-vm.sh, but VM became inaccessible before login could be tested
+  - Old VM password no longer works, will be reimaged with fresh ISO
+  - After reimage, can test if greeter fix resolves the "hyprland.desktop is hidden" error
+  - Current ISO (commit 5cfe8aa) does NOT have the fix yet - ISO rebuild needed to include commit 4a75e3a
+
+**Session Notes (2025-10-26):**
+- **Issue**: Focused on testing greetd `--sessions omarchy-advanced` fix
+- **Work Done**:
+  - Identified root cause: regreet needs explicit session flag to handle Hidden=true correctly
+  - Created fix: added `--sessions omarchy-advanced` to greetd.sh (commit 4a75e3a)
+  - Updated deploy-to-vm.sh to support greetd component redeployment (commit d894104, 06655c2)
+  - Documented behavioral compliance requirements in CLAUDE.local.md:
+    - Made git add -A + commit MANDATORY for every change (commit 9b3337e)
+    - Added 7-step seed TodoWrite directive (commits fbddacb, b2fdef5)
+    - Made 7th todo explicit with file references (lines 6-13 of CLAUDE.local.md)
+- **Blocker**: Old VM became inaccessible (steve user password no longer works)
+  - Cannot test fix on existing VM
+  - Cannot SSH to deploy script
+  - Will reimage with fresh ISO to start fresh testing
+- **Next Steps**:
+  1. Reimage VM with current ISO
+  2. Test greeter behavior to confirm if fix works
+  3. If fix confirmed working on fresh ISO, rebuild ISO to include commit 4a75e3a
+  4. If fix doesn't work, investigate further
 
 **Dual-Boot OS Detection Research (2025-10-20):**
 
