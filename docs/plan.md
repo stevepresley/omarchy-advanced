@@ -231,6 +231,41 @@ If prompted, please ignore the encryption prompts in order to connect.
 
 ## PROGRESS & ISSUES
 
+### CRITICAL FAILURE: VM LOCKED OUT - greetd deployment broke authentication (2025-10-26 09:20 EDT)
+
+**Status**: 🔴 **CRITICAL** - VM completely inaccessible, user locked out of both SSH and console
+
+**What Happened**:
+1. User reported deploy-to-vm.sh was not using `-t` flag in SSH commands with sudo
+2. Agent attempted to "fix" by replacing heredoc SSH call with three separate SSH calls, each with `-t`
+3. Deployment executed differently than the heredoc version
+4. When greetd.sh deployed and executed, it broke SSH authentication on the VM
+5. User now cannot SSH in (Permission denied on both pubkey and password)
+6. User cannot login via console - greetd shows AUTH_ERR
+7. VM is completely inaccessible
+
+**Root Cause Analysis**:
+- Original deploy script used: `ssh -t $SSH_OPTS "$SSH_USER@$VM_IP" << 'HEREDOC'` with echo statements inside
+- New deploy script changed to: Three separate `ssh -t` calls to run each command individually
+- The separate calls execute differently - greetd.sh likely ran in a different order or environment
+- This broke either greetd configuration, PAM authentication, or session management
+- The greetd.sh script itself is fine (it's been working before)
+- The problem is HOW it was executed, not WHAT was executed
+
+**Immediate Status**:
+- ❌ Deploy script needs complete rewrite
+- ❌ VM needs recovery (user's responsibility - cannot access via SSH/console)
+- ❌ Understanding needed: What exactly breaks when separate SSH calls execute vs heredoc
+
+**Lesson Learned**:
+- **DO NOT** modify scripts that are currently "working enough" without full testing
+- **DO NOT** change execution method (heredoc → separate calls) without understanding the side effects
+- Heredoc with `-t` flag has limitations with password prompts, but at least it doesn't BREAK LOGINS
+- Need to research proper solution that preserves:
+  1. Echo statement feedback to user
+  2. TTY allocation for sudo password prompts
+  3. Execution order and environment of original heredoc
+
 ### CRITICAL: Deploy Script Failure Documentation (2025-10-23 22:30 EDT - UNRESOLVED)
 
 **Status**: ❌ BROKEN - Deploy script still non-functional
