@@ -68,7 +68,7 @@ deploy_greetd() {
 
   # Fix omarchy-advanced.desktop Exec line
   echo "Fixing omarchy-advanced.desktop Exec line..."
-  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo sed -i 's/Exec=uwsm start -- hyprland\.desktop/Exec=uwsm start -- hyprland/' /usr/share/wayland-sessions/omarchy-advanced.desktop
+  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo sed -i 's|Exec=uwsm start -- hyprland\.desktop|Exec=uwsm start -- hyprland|' /usr/share/wayland-sessions/omarchy-advanced.desktop
   echo "✓ omarchy-advanced.desktop Exec line fixed"
 }
 
