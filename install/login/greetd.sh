@@ -3,6 +3,9 @@
 # Configure greetd display manager to replace autologin
 # greetd provides login screen with optional VNC remote access via wayvnc
 
+# Update pacman database before installing (following pattern from install/preflight/pacman.sh)
+sudo pacman -Syu --noconfirm
+
 # Install greetd display manager with regreet greeter and sway compositor
 sudo pacman -S --noconfirm --needed greetd greetd-regreet sway
 
