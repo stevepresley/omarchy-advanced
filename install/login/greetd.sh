@@ -80,7 +80,7 @@ sudo tee /usr/share/wayland-sessions/omarchy-advanced.desktop <<'EOF' >/dev/null
 [Desktop Entry]
 Name=Omarchy Advanced
 Comment=Omarchy Advanced Hyprland session
-Exec=uwsm start -- hyprland.desktop
+Exec=uwsm start -- hyprland
 Type=Application
 Categories=System
 EOF
