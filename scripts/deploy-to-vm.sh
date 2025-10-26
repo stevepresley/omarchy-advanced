@@ -61,16 +61,17 @@ deploy_greetd() {
   scp $SSH_OPTS -q install/login/greetd.sh "$SSH_USER@$VM_IP:/tmp/greetd-update.sh"
   echo "✓ greetd script copied to /tmp on VM"
 
-  # Stop greetd, run configuration, and restart in one ssh call
+  # Stop greetd, run configuration, and restart
+  # Use -t flag to allocate pseudo-terminal so sudo can prompt for password
   echo "Reconfiguring greetd (stop → update → restart)..."
   ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" << 'GREETD_UPDATE'
-    echo "Stopping greetd service..."
-    sudo systemctl stop greetd.service || true
-    echo "Running greetd configuration..."
-    sudo bash /tmp/greetd-update.sh
-    echo "Starting greetd service..."
-    sudo systemctl start greetd.service
-    echo "✓ greetd reconfigured and restarted"
+echo "Stopping greetd service..."
+sudo systemctl stop greetd.service || true
+echo "Running greetd configuration..."
+sudo bash /tmp/greetd-update.sh
+echo "Starting greetd service..."
+sudo systemctl start greetd.service
+echo "✓ greetd reconfigured and restarted"
 GREETD_UPDATE
 }
 
