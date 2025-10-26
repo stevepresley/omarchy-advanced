@@ -65,6 +65,11 @@ deploy_greetd() {
   echo "Updating greetd sway-config..."
   ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo bash /tmp/update-greetd-config.sh
   echo "✓ greetd configuration updated"
+
+  # Fix omarchy-advanced.desktop Exec line
+  echo "Fixing omarchy-advanced.desktop Exec line..."
+  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo sed -i 's/Exec=uwsm start -- hyprland\.desktop/Exec=uwsm start -- hyprland/' /usr/share/wayland-sessions/omarchy-advanced.desktop
+  echo "✓ omarchy-advanced.desktop Exec line fixed"
 }
 
 # Deploy based on component selection
