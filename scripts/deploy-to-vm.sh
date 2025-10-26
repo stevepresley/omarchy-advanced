@@ -63,12 +63,16 @@ deploy_greetd() {
 
   # Stop greetd, run configuration, and restart
   # Use -t flag to allocate pseudo-terminal so sudo can prompt for password
-  # Note: Each sudo command needs its own -t ssh call to properly allocate TTY
   echo "Reconfiguring greetd (stop → update → restart)..."
-  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo systemctl stop greetd.service || true
-  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo bash /tmp/greetd-update.sh
-  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo systemctl start greetd.service
-  echo "✓ greetd reconfigured and restarted"
+  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" << 'GREETD_UPDATE'
+echo "Stopping greetd service..."
+sudo systemctl stop greetd.service || true
+echo "Running greetd configuration..."
+sudo bash /tmp/greetd-update.sh
+echo "Starting greetd service..."
+sudo systemctl start greetd.service
+echo "✓ greetd reconfigured and restarted"
+GREETD_UPDATE
 }
 
 # Deploy based on component selection
