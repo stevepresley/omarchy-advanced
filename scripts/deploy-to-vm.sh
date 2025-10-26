@@ -61,18 +61,13 @@ deploy_greetd() {
   scp $SSH_OPTS -q install/login/greetd.sh "$SSH_USER@$VM_IP:/tmp/greetd-update.sh"
   echo "✓ greetd script copied to /tmp on VM"
 
-  # Stop greetd service, reconfigure, and restart
+  # Copy helper script and greetd installation script to VM
+  scp $SSH_OPTS -q scripts/update-greetd-on-vm.sh "$SSH_USER@$VM_IP:/tmp/update-greetd-on-vm.sh"
+  echo "✓ Helper scripts copied to /tmp on VM"
+
+  # Execute greetd update via helper script
   echo "Reconfiguring greetd..."
-  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" bash -c '
-    set -e
-    echo "Stopping greetd service..."
-    sudo systemctl stop greetd.service || true
-    echo "Running greetd configuration..."
-    sudo bash /tmp/greetd-update.sh
-    echo "Starting greetd service..."
-    sudo systemctl start greetd.service
-    echo "✓ greetd reconfigured and restarted"
-  '
+  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo bash /tmp/update-greetd-on-vm.sh
 }
 
 # Deploy based on component selection
