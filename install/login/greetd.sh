@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # Configure greetd display manager to replace autologin
 # greetd provides login screen with optional VNC remote access via wayvnc
 
