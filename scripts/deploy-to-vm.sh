@@ -61,21 +61,12 @@ deploy_greetd() {
   scp $SSH_OPTS -q install/login/greetd.sh "$SSH_USER@$VM_IP:/tmp/greetd-update.sh"
   echo "✓ greetd script copied to /tmp on VM"
 
-  # Stop greetd, run configuration, and restart
-  # IMPORTANT: Keep all commands in single SSH session (heredoc) to ensure atomic execution
-  # If separated into multiple ssh calls, greetd service restart can reload sudoers/PAM
-  # mid-execution and lock out the user. Heredoc ensures commands complete in sequence.
-  # Use -t flag to allocate pseudo-terminal so sudo can prompt for password
-  echo "Reconfiguring greetd (stop → update → restart)..."
-  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" << 'GREETD_UPDATE'
-echo "Stopping greetd service..."
-sudo systemctl stop greetd.service || true
-echo "Running greetd configuration..."
-sudo bash /tmp/greetd-update.sh
-echo "Starting greetd service..."
-sudo systemctl start greetd.service
-echo "✓ greetd reconfigured and restarted"
-GREETD_UPDATE
+  # Execute greetd configuration script
+  # Note: greetd.sh handles stopping/updating/restarting internally
+  # Using same pattern as wayvnc deployment: copy files → ssh -t sudo bash /tmp/script.sh
+  echo "Reconfiguring greetd..."
+  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo bash /tmp/greetd-update.sh
+  echo "✓ greetd reconfigured and restarted"
 }
 
 # Deploy based on component selection
