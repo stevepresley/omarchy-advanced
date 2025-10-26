@@ -53,10 +53,10 @@ output * bg "#1a1b26" solid_color
 # Attach wayvnc to greeter (handles both boot and session exit)
 exec /usr/local/bin/greetd-wayvnc-attach
 
-# Launch regreet graphical login prompt
-# Note: regreet will show session picker if multiple sessions exist
-# Since we delete all other sessions, only Omarchy Advanced should appear
-exec regreet
+# Launch regreet graphical login prompt with only Omarchy Advanced session
+# --sessions omarchy-advanced restricts the picker to ONLY show Omarchy Advanced
+# This ensures no other sessions (hyprland, sway, etc) appear in the greeter menu
+exec regreet --sessions omarchy-advanced
 EOF
 
 # Add sudoers rule to allow greeter user to run wayvncctl without password
