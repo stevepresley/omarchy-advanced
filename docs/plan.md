@@ -1418,15 +1418,16 @@ Replace the current autologin approach with greetd display manager:
   - Switching to TTY approach for production robustness
   - Both methods target same issue (finding graphical session), different detection approach
 
-- **Status**: ✅ SCREEN LOCK WORKING (TTY detection commit 165e697), verified after reboot (2025-10-24)
-  - Tested: VNC disconnect locks screen with session 5 (TTY=tty1)
-  - After reboot: TTY detection still correctly identifies session 5
-  - Lock screen appears with password prompt on VNC reconnect ✅
-  - **REMAINING BLOCKER**: Greeter Sway not launching (Issue 26 Part 2)
-    - Monitor script attempts to launch greetd via `systemctl start`
-    - Greeter PID not found after launch attempt
-    - wayvnc remains detached, reconnect re-attaches to user Hyprland (not greeter)
-    - **TODO for next session**: Investigate greetd/regreet configuration why greeter not launching
+- **Status**: ✅ COMPLETED (2025-10-26)
+  - **Fix Applied**: Updated `install/config/wayvnc.sh` to install monitor script during ISO build
+  - **Issue**: wayvnc.sh was copying service file but NOT copying `/usr/local/bin/omarchy-wayvnc-monitor`
+  - **Resolution**: Added installation steps to copy monitor script and set executable permissions
+  - **Testing**:
+    - Deployed via `scripts/deploy-to-vm.sh` and verified with grep on deployed VM
+    - Tested VNC disconnect → screen locks ✅
+    - Tested VNC reconnect after reboot → greeter appears, re-authentication required ✅
+    - Screen lock monitor now functional and persistent across reboots
+  - **Implementation Complete**: Future ISO builds will now include screen locking on VNC disconnect
 
 **Issue 27: Login Sequence Visibility - Black Screen During Transition (2025-10-23)**
 - **Problem**: During greetd→Hyprland transition, user sees black screen with visible terminal output

@@ -95,8 +95,15 @@ EOF
   # Enable wayvnc disconnect monitor (Issues 24 & 25)
   # This system service:
   # 1. Detects when VNC client disconnects
-  # 2. Detaches wayvnc from session (forces greeter on reconnect for re-authentication)
+  # 2. Locks screen and detaches wayvnc from session (forces greeter on reconnect for re-authentication)
   # Note: Runs as root to access wayvnc socket owned by root
+
+  # Install the monitor script
+  sudo cp "$HOME/.local/share/omarchy/install/files/usr-local-bin-omarchy-wayvnc-monitor" \
+     /usr/local/bin/omarchy-wayvnc-monitor
+  sudo chmod +x /usr/local/bin/omarchy-wayvnc-monitor
+
+  # Install the systemd service
   sudo cp "$HOME/.local/share/omarchy/config/systemd/system/omarchy-wayvnc-monitor.service" \
      /etc/systemd/system/omarchy-wayvnc-monitor.service
 
