@@ -1429,6 +1429,32 @@ Replace the current autologin approach with greetd display manager:
     - Screen lock monitor now functional and persistent across reboots
   - **Implementation Complete**: Future ISO builds will now include screen locking on VNC disconnect
 
+**Issue 26.1: VNC FIRST CONNECT Shows Unlocked User Session Instead of Greeter (2025-10-26)**
+- **Problem**: When a user is logged in via console AND another client connects via VNC for the FIRST TIME (no prior VNC connections), the VNC client sees the unlocked user desktop instead of the greeter login prompt
+- **Current behavior**:
+  1. User logs in via console greeter → gets Hyprland session
+  2. User opens RealVNC Viewer and connects for first time
+  3. **Expected**: Should see greeter login prompt (re-authentication required)
+  4. **Actual**: Sees unlocked Hyprland desktop with running session
+  5. After VNC disconnect: Screen locks (works)
+  6. On VNC reconnect: Sees lock screen and requires re-authentication (works)
+- **Root cause**: wayvnc attaches to currently running user Hyprland session instead of checking for logged-in state and forcing greeter
+- **Security implications**:
+  - First VNC connection to active console session shows unprotected desktop
+  - Works correctly on subsequent reconnections (screen lock protects second+ connections)
+  - Physical console access + VNC visibility = potential security issue in lab/remote scenarios
+- **Edge case solution (TABLED - low priority for now)**:
+  - Lock screen on VNC CONNECT in addition to DISCONNECT
+  - Would require detecting new VNC connections and triggering screen lock
+  - Useful for scenarios where physical console access is available (proxmox web interface in this case)
+  - Decision: Focus on fixing Issue 26 greeter attachment first
+  - If Issue 26 is resolved (greeter always shows on reconnect), this edge case becomes moot
+- **Related to Issue 26**: This is a variant of the "greeter re-attachment" problem
+  - Issue 26: On disconnect → reconnect shows greeter ✅ (FIXED)
+  - Issue 26.1: On initial connect (without prior VNC) → shows unlocked session ⏳ (TABLED - lower priority)
+  - Both symptoms point to wayvnc attachment strategy needs refinement
+- **Status**: ⏳ DOCUMENTED (2025-10-26) - Tabled pending Issue 26 greeter attachment resolution
+
 **Issue 27: Login Sequence Visibility - Black Screen During Transition (2025-10-23)**
 - **Problem**: During greetd→Hyprland transition, user sees black screen with visible terminal output
 - **Current behavior** (Test 4 findings):
