@@ -803,6 +803,24 @@ Implementing partition selection to allow installing to specific partitions inst
 - Updated package manifest and plan documentation to reflect `regreet` as the supported greeter.
 - Pending verification: rebuild ISO / rerun installer to ensure regreet login renders correctly and VNC access still works.
 
+**Issue 28: Regreet session picker - showing multiple sessions instead of just Omarchy Advanced (2025-10-26)**
+- **Problem**: Fresh ISO builds fail at login with error "Entry /usr/share/wayland-sessions/hyprland.desktop is hidden"
+  - Root cause: User sees hyprland.desktop in session picker despite being marked Hidden=true
+  - regreet's default behavior doesn't respect Hidden=true properly
+- **Investigation**: Compared greetd.sh between commit 5cfe8aa (ISO build commit) and current HEAD - identical
+  - Both versions use `exec regreet` without explicit session selection
+  - Strategy is to hide unwanted sessions with Hidden=true, but this doesn't work reliably
+- **Root cause analysis**: regreet needs explicit instruction on which session to use/show
+  - Commit bb7ed96 previously used `--sessions omarchy-advanced` flag (was working)
+  - Commit f2d7bb3 removed the flag, saying "use default behavior" (broke it)
+  - Default behavior tries to show all sessions, including hidden ones
+- **Resolution**: Restore `--sessions omarchy-advanced` flag to regreet invocation
+  - Explicitly restricts regreet to ONLY show Omarchy Advanced session
+  - User gets single session option, no picker confusion
+  - Other session files kept with Hidden=true as defensive redundancy
+- **Status**: ✅ FIXED (commit 4a75e3a)
+- **Next step**: Rebuild ISO with fix and test fresh install flow
+
 **Dual-Boot OS Detection Research (2025-10-20):**
 
 Investigated how Limine handles multi-boot scenarios:
