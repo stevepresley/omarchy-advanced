@@ -57,16 +57,14 @@ deploy_greetd() {
   echo ""
   echo "Deploying greetd configuration..."
 
-  # Copy greetd installation script to VM
-  scp $SSH_OPTS -q install/login/greetd.sh "$SSH_USER@$VM_IP:/tmp/greetd-update.sh"
-  echo "✓ greetd script copied to /tmp on VM"
+  # Copy greetd config update script to VM
+  scp $SSH_OPTS -q scripts/update-greetd-config.sh "$SSH_USER@$VM_IP:/tmp/update-greetd-config.sh"
+  echo "✓ greetd config script copied to /tmp on VM"
 
-  # Execute greetd configuration script
-  # Note: greetd.sh handles stopping/updating/restarting internally
-  # Using same pattern as wayvnc deployment: copy files → ssh -t sudo bash /tmp/script.sh
-  echo "Reconfiguring greetd..."
-  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo bash /tmp/greetd-update.sh
-  echo "✓ greetd reconfigured and restarted"
+  # Update greetd sway-config with session restriction
+  echo "Updating greetd sway-config..."
+  ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo bash /tmp/update-greetd-config.sh
+  echo "✓ greetd configuration updated"
 }
 
 # Deploy based on component selection
