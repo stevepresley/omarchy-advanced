@@ -62,6 +62,9 @@ deploy_greetd() {
   echo "✓ greetd script copied to /tmp on VM"
 
   # Stop greetd, run configuration, and restart
+  # IMPORTANT: Keep all commands in single SSH session (heredoc) to ensure atomic execution
+  # If separated into multiple ssh calls, greetd service restart can reload sudoers/PAM
+  # mid-execution and lock out the user. Heredoc ensures commands complete in sequence.
   # Use -t flag to allocate pseudo-terminal so sudo can prompt for password
   echo "Reconfiguring greetd (stop → update → restart)..."
   ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" << 'GREETD_UPDATE'
