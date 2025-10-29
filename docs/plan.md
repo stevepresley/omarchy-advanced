@@ -211,6 +211,10 @@ If prompted, please ignore the encryption prompts in order to connect.
 **Q5: wayvnc Autostart Location**
 - A: Should verify `~/.config/hypr/autostart.conf` exists in `config/hypr/` directory structure and create if needed.
 
+**Q6: Partition Selection Requirements (2025-10-29)**
+- A: See [docs/partition-selection.md](partition-selection.md) for complete requirements, design, and implementation plan
+- Summary: Partition selection will replace `omarchy-drive-select` in Advanced mode (ISO configurator). Display ALL partitions with size and filesystem info, disable selection for < 16GB and mounted partitions, create separate utilities without deleting existing drive selection.
+
 ### Additional Implementation Requirements
 
 1. **State Management** - Track user choices (Workstation vs VM, encryption enabled, SSH enabled, VNC enabled) throughout installation using environment variables or state file.
