@@ -5,9 +5,9 @@
 
 set -euo pipefail
 
-# Source presentation helpers for gum styling
-# OMARCHY_PATH should already be exported by the calling script (configurator)
-source "${OMARCHY_PATH}/install/helpers/presentation.sh"
+# Set OMARCHY_PATH and source presentation helpers for gum styling
+export OMARCHY_PATH="${OMARCHY_PATH:-/root/omarchy}"
+source "$OMARCHY_PATH/install/helpers/presentation.sh"
 
 if command -v gum >/dev/null 2>&1; then
   selector_cmd=("gum" "choose" "--header" "Select install target (disk or partition)")
