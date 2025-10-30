@@ -100,7 +100,5 @@ while true; do
   if (( partition_size_bytes >= min_size_bytes )); then
     printf "%s\n" "$device"
     break
-  else
-    echo "Error: $device is too small ($(numfmt --to=iec-i --suffix=B $partition_size_bytes) bytes). Minimum required is 16GB. Please select a different partition." >&2
   fi
 done
