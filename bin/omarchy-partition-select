@@ -5,8 +5,10 @@
 
 set -euo pipefail
 
-# Set OMARCHY_PATH and source presentation helpers for gum styling
-export OMARCHY_PATH="${OMARCHY_PATH:-/root/omarchy}"
+# Source presentation helpers for gum styling (for color support)
+if [[ -z "${OMARCHY_PATH:-}" ]]; then
+  export OMARCHY_PATH="/root/omarchy"
+fi
 source "$OMARCHY_PATH/install/helpers/presentation.sh"
 
 if command -v gum >/dev/null 2>&1; then
