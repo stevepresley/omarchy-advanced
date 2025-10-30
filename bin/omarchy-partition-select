@@ -53,6 +53,16 @@ mapfile -t options < <(
       if $part.partlabel != null and $part.partlabel != "" then " [" + $part.partlabel + "]"
       elif $part.label != null and $part.label != "" then " [" + $part.label + "]"
       else "" end;
+    def fmt_size_warning($val):
+      if $val == null or $val == "" then ""
+      else
+        # Parse size string to bytes (assumes format like "17G", "16GiB", etc)
+        if ($val | test("[0-9]+G")) then
+          ($val | scan("[0-9]+") | tonumber * 1024 * 1024 * 1024) as $bytes |
+          if $bytes < (16 * 1024 * 1024 * 1024) then " [TOO SMALL - 16GB minimum required]" else "" end
+        else ""
+        end
+      end;
 
     .blockdevices[]
     | select(.type == "disk")
@@ -69,7 +79,8 @@ mapfile -t options < <(
              + fmt_size($part.size)
              + fmt_fs($part)
              + fmt_mount($part)
-             + fmt_label($part)))
+             + fmt_label($part)
+             + fmt_size_warning($part.size)))
   ' <<<"$lsblk_json"
 )
 
