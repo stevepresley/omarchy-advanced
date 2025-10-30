@@ -90,6 +90,7 @@ if ((${#options[@]} == 0)); then
 fi
 
 while true; do
+  printf "\033[H\033[2J" # Clear screen before showing menu
   selected="$("${selector_cmd[@]}" "${options[@]}")"
   if [[ $? -ne 0 ]]; then
     exit 1
