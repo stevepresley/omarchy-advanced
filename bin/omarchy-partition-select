@@ -101,7 +101,6 @@ while true; do
     printf "%s\n" "$device"
     break
   else
-    partition_size_display=$(numfmt --to=iec-i --suffix=B $partition_size_bytes 2>/dev/null || echo "unknown size")
-    gum style --bold --foreground 1 "Error: $device is $partition_size_display. Minimum required is 16GB. Please select a different partition."
+    echo "Error: $device is too small ($(numfmt --to=iec-i --suffix=B $partition_size_bytes) bytes). Minimum required is 16GB. Please select a different partition." >&2
   fi
 done
