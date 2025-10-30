@@ -80,5 +80,5 @@ fi
 
 selected="$("${selector_cmd[@]}" "${options[@]}")" || exit 1
 
-# Device path is always the first token on the line
-printf "%s\n" "$selected" | awk '{print $1}'
+# Device path is after the tree-drawing characters - extract it with grep
+printf "%s\n" "$selected" | grep -oE '/dev/[a-z0-9]+' | head -1
