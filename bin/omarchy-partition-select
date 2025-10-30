@@ -59,7 +59,7 @@ mapfile -t options < <(
         # Parse size string to bytes (assumes format like "17G", "16GiB", etc)
         if ($val | test("[0-9]+G")) then
           ($val | scan("[0-9]+") | tonumber * 1024 * 1024 * 1024) as $bytes |
-          if $bytes < (16 * 1024 * 1024 * 1024) then " [TOO SMALL - 16GB minimum required]" else "" end
+          if $bytes < (16 * 1024 * 1024 * 1024) then " \u001b[31m[TOO SMALL - 16GB minimum required]\u001b[0m" else "" end
         else ""
         end
       end;
