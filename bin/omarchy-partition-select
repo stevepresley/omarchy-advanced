@@ -3,12 +3,14 @@
 # Interactive selector that lists disks plus their partitions and returns the chosen device path.
 # Defaults to all block devices but accepts optional device arguments to limit the list.
 
-set -euo pipefail
-
-# Source presentation helpers for gum styling (for color support)
+# Set OMARCHY_PATH before enabling strict mode (needs to run before set -euo pipefail)
 if [[ -z "${OMARCHY_PATH:-}" ]]; then
   export OMARCHY_PATH="/root/omarchy"
 fi
+
+set -euo pipefail
+
+# Source presentation helpers for gum styling (for color support)
 source "$OMARCHY_PATH/install/helpers/presentation.sh"
 
 if command -v gum >/dev/null 2>&1; then
