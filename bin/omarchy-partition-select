@@ -90,7 +90,10 @@ if ((${#options[@]} == 0)); then
 fi
 
 while true; do
-  selected="$("${selector_cmd[@]}" "${options[@]}")" || exit 1
+  selected="$("${selector_cmd[@]}" "${options[@]}")"
+  if [[ $? -ne 0 ]]; then
+    exit 1
+  fi
   device=$(printf "%s\n" "$selected" | grep -oE '/dev/[a-z0-9]+' | tail -1)
   partition_size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
   min_size_bytes=$((16 * 1024 * 1024 * 1024))
