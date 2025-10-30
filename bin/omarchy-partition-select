@@ -93,7 +93,11 @@ if ((${#options[@]} == 0)); then
 fi
 
 while true; do
-  selected="$("${selector_cmd[@]}" "$error_message" "${options[@]}")"
+  header="Select install target (disk or partition)"
+  if [[ -n "$error_message" ]]; then
+    header="$header"$'\n'"$(gum style --foreground 1 "$error_message")"
+  fi
+  selected="$("gum" "choose" "--header" "$header" "${options[@]}")"
   if [[ $? -ne 0 ]]; then
     exit 1
   fi
@@ -105,6 +109,6 @@ while true; do
     break
   else
     partition_size_human=$(lsblk -dno SIZE "$device" 2>/dev/null || echo "unknown")
-    error_message="⚠️  ERROR: Selected partition ($partition_size_human) is too small. Minimum required: 16GB"
+    error_message="ERROR: Selected partition ($partition_size_human) is too small. Minimum required: 16GB"
   fi
 done
