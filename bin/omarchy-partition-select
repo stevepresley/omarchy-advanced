@@ -102,7 +102,7 @@ fi
 
 while true; do
   if [[ -n "$error_message" ]]; then
-    gum style --foreground 1 "$error_message"
+    gum style --foreground 1 "$error_message" 1>&2
     echo
   fi
   selected="$("gum" "choose" "--header" "Select install target (disk or partition)" "--padding" "1 $PADDING_LEFT" "${options[@]}")"
