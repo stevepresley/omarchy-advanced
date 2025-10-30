@@ -97,7 +97,7 @@ while true; do
   if [[ -n "$error_message" ]]; then
     header="$header"$'\n'"$(gum style --foreground 1 "$error_message")"
   fi
-  selected="$("gum" "choose" "--header" "$header" "${options[@]}")"
+  selected="$("gum" "choose" "--header" "$header" "--padding" "1 $PADDING_LEFT" "${options[@]}")"
   if [[ $? -ne 0 ]]; then
     exit 1
   fi
