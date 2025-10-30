@@ -3,15 +3,15 @@
 # Interactive selector that lists disks plus their partitions and returns the chosen device path.
 # Defaults to all block devices but accepts optional device arguments to limit the list.
 
-# Set OMARCHY_PATH before enabling strict mode (needs to run before set -euo pipefail)
+# set OMARCHY_PATH and source presentation helpers
 if [[ -z "${OMARCHY_PATH:-}" ]]; then
   export OMARCHY_PATH="/root/omarchy"
 fi
 
 set -euo pipefail
 
-# Source presentation helpers for gum styling (for color support)
 source "$OMARCHY_PATH/install/helpers/presentation.sh"
+error_message=""
 
 if command -v gum >/dev/null 2>&1; then
   selector_cmd=("gum" "choose" "--header" "Select install target (disk or partition)")
@@ -29,9 +29,6 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "Error: jq is required for omarchy-partition-select" >&2
   exit 1
 fi
-
-# Error message for inline display in menu (empty by default, set when validation fails)
-error_message=""
 
 # Allow passing specific block devices (useful for testing)
 if (($# > 0)); then
@@ -67,13 +64,13 @@ mapfile -t options < <(
     def fmt_size_warning($val):
       if $val == null or $val == "" then ""
       else
-        # Parse size string to bytes (assumes format like "17G", "16GiB", etc)
+        # Parse size string to bytes
         if ($val | test("[0-9]+G")) then
           ($val | scan("[0-9]+") | tonumber * 1024 * 1024 * 1024) as $bytes |
           if $bytes < (16 * 1024 * 1024 * 1024) then " \u001b[31m[TOO SMALL - 16GB minimum required]\u001b[0m" else "" end
         else ""
         end
-      end;
+       end;
 
     .blockdevices[]
     | select(.type == "disk")
@@ -101,11 +98,13 @@ if ((${#options[@]} == 0)); then
 fi
 
 while true; do
-  if [[ -n "$error_message" ]]; then
-    gum style --foreground 1 "$error_message" 1>&2
-    echo
-  fi
-  selected="$("gum" "choose" "--header" "Select install target (disk or partition)" "--padding" "1 $PADDING_LEFT" "${options[@]}")"
+
+  header_text="Select install target (disk or partition)"
+  selected="$("gum" "choose" "--header" "$error_message
+$header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
+
+  #selected="$("gum" "choose" "--padding" "1 $PADDING_LEFT" "${options[@]}")"
+  error_message=""
   if [[ $? -ne 0 ]]; then
     exit 1
   fi
@@ -116,7 +115,8 @@ while true; do
     printf "%s\n" "$device"
     break
   else
-    partition_size_human=$(lsblk -dno SIZE "$device" 2>/dev/null || echo "unknown")
-    error_message="ERROR: Selected partition ($partition_size_human) is too small. Minimum required: 16GB"
+   # partition_size_display=$(num fmt --to=iec-i --suffix=B $partition_size_bytes 2>/dev/null || echo "unknown size")
+   # gum style --bold --foreground 1 "Error: $device is $partition_size_display.
+   error_message="Error: $device is too small ($(numfmt --to=iec-i --suffix=B $partition_size_bytes) bytes).  Minimum required is 16GB. Please select a different partition."
   fi
 done
