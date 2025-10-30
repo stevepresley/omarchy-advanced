@@ -102,7 +102,6 @@ fi
 
 while true; do
   if [[ -n "$error_message" ]]; then
-    clear_logo
     gum style --foreground 1 "$error_message" 1>&2
     echo
   fi
