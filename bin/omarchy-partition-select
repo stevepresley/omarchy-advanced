@@ -22,6 +22,9 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
+# Error message for inline display in menu (empty by default, set when validation fails)
+error_message=""
+
 # Allow passing specific block devices (useful for testing)
 if (($# > 0)); then
   devices=("$@")
@@ -90,7 +93,7 @@ if ((${#options[@]} == 0)); then
 fi
 
 while true; do
-  selected="$("${selector_cmd[@]}" "${options[@]}")"
+  selected="$("${selector_cmd[@]}" "$error_message" "${options[@]}")"
   if [[ $? -ne 0 ]]; then
     exit 1
   fi
@@ -102,6 +105,6 @@ while true; do
     break
   else
     partition_size_human=$(lsblk -dno SIZE "$device" 2>/dev/null || echo "unknown")
-    gum style --foreground 1 --padding "1 1" "Error: Selected partition ($partition_size_human) is too small. Minimum required: 16GB"
+    error_message="⚠️  ERROR: Selected partition ($partition_size_human) is too small. Minimum required: 16GB"
   fi
 done
