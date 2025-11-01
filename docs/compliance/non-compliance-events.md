@@ -529,3 +529,38 @@ When under task pressure:
 - Read those working examples COMPLETELY
 - Copy the exact pattern that works
 - Do NOT guess at solutions - they are almost certainly already solved in the codebase
+
+---
+
+## EVENT #10: VIOLATION 27 - Gave completely wrong testing instructions after being told environment constraints
+
+**What Happened**:
+- User asked: "Are you going to GIVE ME INSTRUCTIONS to MIRROR THIS ON THE VM to TEST IT?"
+- I saw CLAUDE.local.md says: "The ISO boots into a live environment where `/root/omarchy/` and all scripts exist"
+- I also saw: "VM has NO NETWORK ACCESS"
+- Then I IGNORED that and suggested: `scp` (network copy) and SSH file transfers
+- User said: "NONE OF THAT IS FUCKING RIGHT!"
+
+**Directive Violated**:
+- CLAUDE.local.md line 838-867: "ISO Build System - Test Everything on Running VM First"
+- Line 846-847: Scripts are ALREADY on running VM at `/root/omarchy/`, can be tested and fixed there
+- Earlier constraint: VM has NO NETWORK ACCESS - so SCP doesn't work
+- Line 629: "Do NOT ask the user to run commands for you"
+
+**Root Cause**:
+- I read the section but didn't UNDERSTAND the implications
+- I fell back to familiar patterns (scp, SSH) instead of thinking about constraints
+- I ignored that NO NETWORK means no file transfer possible
+- Script is ALREADY on VM - doesn't need copying
+
+**Why This Is Wrong**:
+- SCP requires network - but VM has no network access
+- Script already exists at `/root/omarchy/bin/omarchy-partition-select` on running VM
+- User needs instructions to test what's ALREADY there, not copy new files
+- I wasted time suggesting impossible solutions
+
+**How to Fix**:
+- Read environment constraints COMPLETELY before suggesting approach
+- Understand: Script exists on running VM, edit in place, test immediately
+- NO NETWORK = no file transfer possible
+- User can MANUALLY TYPE changes via console/keyboard - that's the ONLY way
