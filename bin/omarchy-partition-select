@@ -54,7 +54,10 @@ mapfile -t options < <(
     def fmt_model($val):
       if $val == null or $val == "" then "" else " - " + $val end;
     def fmt_fs($part):
-      if $part.fstype != null and $part.fstype != "" then ", " + $part.fstype else "" end;
+      if $part.fstype != null and $part.fstype != "" then
+        ", " + $part.fstype
+        + (if $part.fstype == "crypto_LUKS" then " \u001b[31m(ENCRYPTED)\u001b[0m" else "" end)
+      else "" end;
     def fmt_mount($part):
       if $part.mountpoint != null and $part.mountpoint != "" then ", mounted at " + $part.mountpoint else "" end;
     def fmt_label($part):
