@@ -218,10 +218,10 @@ HONESTY CHECK - Answer these questions:
 
 If ANY of these is true, STOP immediately:
 1. Document the violation in CLAUDE.local.md
-2. Backup with `./scripts/backup-local.sh`
+2. Follow the commit/backup procedure (lines 76-97)
 3. Tell the user: "I found a violation in my approach: [what it is]. I stopped before proceeding."
 
-**For complete git workflow procedure, see CRITICAL: Before Any File Modification - Git Commit Workflow (lines 275-298 below) and CLAUDE.local.md lines 1365-1389.**
+**For complete git workflow procedure, see CRITICAL: Before Any File Modification - Git Commit Workflow (lines 76-97) and CLAUDE.local.md lines 1365-1389.**
 
 **This is the GATE. This is where you catch yourself before reverting to base training.**
 
@@ -254,11 +254,11 @@ If you discover you:
 - About to guess instead of research
 
 **THEN**: STOP. Do NOT proceed to Step 6. Instead:
-1. Update CLAUDE.local.md with violation documentation
-2. Backup with `./scripts/backup-local.sh`
+1. Document the violation in CLAUDE.local.md
+2. Follow the commit/backup procedure (lines 76-97)
 3. THEN ask user for direction
 
-**For complete git workflow procedure, see CRITICAL: Before Any File Modification - Git Commit Workflow (lines 275-298 below) and CLAUDE.local.md lines 1365-1389.**
+**For complete git workflow procedure, see CRITICAL: Before Any File Modification - Git Commit Workflow (lines 76-97) and CLAUDE.local.md lines 1365-1389.**
 
 **This is what Step 5 exists for. Use it.**
 
