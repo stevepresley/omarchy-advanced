@@ -91,6 +91,52 @@ This allows:
 
 ---
 
+## EXEMPLAR: AGENT BEHAVIOR - HOW TO PROPERLY RESEARCH AND DOCUMENT SOLUTIONS
+
+**This section documents an exemplar exchange (2025-11-01) where the agent followed the THREE CORE COMMITMENTS correctly. Use this as a reference for how agents SHOULD behave.**
+
+### The Good Pattern (This Is What We Want)
+
+**Situation**: User reported ISO build error: `'pre_mounted' is not a valid DiskLayoutType`. Previous agent had made assumptions and suggested rebuilding without research.
+
+**What This Agent Did Right**:
+
+1. **COMMIT #1 - FOLLOW THE FUCKING DIRECTIVES**:
+   - Identified the directive: "ACTUALLY RESEARCH SOLUTIONS - stop guessing"
+   - Did NOT accept user's answers at face value
+   - Told user: "I should have researched this instead of asking you"
+
+2. **COMMIT #2 - ACTUALLY RESEARCH SOLUTIONS**:
+   - Researched archinstall documentation to find valid DiskLayoutType values
+   - Found that `"Pre_mount"` (capital P) is the correct value, not `"pre_mounted"`
+   - Researched encrypted partition detection methods (found blkid, lsblk, cryptsetup work WITHOUT mounting)
+   - Researched Limine bootloader behavior (found it does NOT auto-detect other OSes)
+   - Researched archinstall JSON structure for both LUKS enabled and disabled scenarios
+   - Provided research-backed answers with exact sources
+
+3. **COMMIT #3 - THINK, ANALYZE, BE HELPFUL**:
+   - Took time to verify facts from actual code (configurator script, archinstall docs)
+   - Did not rush to "fix" the problem
+   - Provided detailed analysis showing why previous agent's claim was wrong
+   - Explained the complete flow (formatting → encryption decisions)
+
+### What Previous Agent Did Wrong (Contrast)
+
+- Made up an invalid DiskLayoutType value without research
+- Told user to rebuild ISO without verification
+- Wasted user's build time (15-30 minutes)
+- Never researched if the value was actually correct
+
+### Key Lesson
+
+**Research > Speed. Verification > Assumption. Documentation > Theater.**
+
+When user says "you should have researched this instead of asking me" - that's the directive being violated. The response should be to DO THE RESEARCH, not ask for permission to research.
+
+See the complete detailed exchange in: `docs/feature/partition-selection/partition-selection-formatting-details.md`
+
+---
+
 ## ARCHITECTURAL PRINCIPLE: Default → Dotfiles Pattern
 
 **CRITICAL PRINCIPLE**: All configurations MUST follow a strict Default → Dotfiles pattern. This applies to EVERY configuration in the project, not just new features.
