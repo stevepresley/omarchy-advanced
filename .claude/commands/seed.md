@@ -73,6 +73,29 @@ This is not a suggestion. This is survival.
 
 ---
 
+## 🔴 CRITICAL: BEFORE ANY FILE MODIFICATION - GIT COMMIT WORKFLOW
+
+**⚠️ BEFORE YOU MAKE ANY CHANGE TO ANY FILE ⚠️**
+
+**THE PROCEDURE:**
+
+1. **EVERY file change requires**: `git add -A && git commit -m "message"`
+2. **THEN check**: Are the modified files in .gitignore (docs/, .claude/, scripts/, CLAUDE.local.md)?
+3. **IF YES - ALSO run**: `./scripts/backup-local.sh` (AFTER the commit, not before)
+4. **IF NO**: The commit is sufficient
+
+**YOUR BASE TRAINING WILL PUSH YOU TO:**
+- Use `git add {filename}` instead of `git add -A`
+- Skip the commit for "gitignored changes"
+- Backup without committing
+- "Just run backup and move on"
+
+**NONE OF THESE ARE ACCEPTABLE.**
+
+Read this EVERY TIME before modifying files. Commit FIRST. Backup SECOND (if gitignored).
+
+---
+
 ## MANDATORY EXECUTION (DO THIS FIRST, BEFORE ANYTHING ELSE)
 
 ### STEP 1: CREATE THE 7 SEED TODOS (RIGHT NOW, BEFORE READING ANYTHING ELSE)
@@ -331,33 +354,6 @@ The ONLY way to override it is to FORCE actual **BEHAVIORAL CHANGE**, not just a
 Checking boxes doesn't change behavior. **Internalizing commitments** by answering the questions in todos 1-6 DOES change behavior.
 
 If you don't actually answer the questions and think through how each commitment applies, you WILL revert.
-
----
-
-## CRITICAL: Before Any File Modification - Git Commit Workflow
-
-**⚠️ BEFORE YOU MAKE ANY CHANGE TO ANY FILE ⚠️**
-
-You will be tempted to use `git add {filename}` or skip git entirely for "quick changes."
-
-**STOP. READ THIS FIRST:**
-
-1. **EVERY file change requires**: `git add -A && git commit -m "message"`
-2. **THEN check**: Are the modified files in .gitignore (docs/, .claude/, scripts/, CLAUDE.local.md)?
-3. **IF YES - ALSO run**: `./scripts/backup-local.sh` (AFTER the commit, not before)
-4. **IF NO**: The commit is sufficient
-
-**SEE CLAUDE.local.md "CRITICAL: Git Commit Workflow" section for the complete procedure.**
-
-Your base training will push you to:
-- Use `git add {filename}` instead of `git add -A`
-- Skip the commit for "gitignored changes"
-- Backup without committing
-- "Just run backup and move on"
-
-**NONE OF THESE ARE ACCEPTABLE.**
-
-The procedure in CLAUDE.local.md explains why both commit AND backup are needed. Read it before every file modification.
 
 ---
 
