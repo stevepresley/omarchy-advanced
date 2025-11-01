@@ -217,7 +217,7 @@ HONESTY CHECK - Answer these questions:
 - Am I about to proceed without their approval, claiming I understood when I didn't?
 
 If ANY of these is true, STOP immediately:
-1. Document the violation in CLAUDE.local.md
+1. Document the violation in docs/compliance/non-compliance-events.md
 2. Follow the commit/backup procedure (lines 76-97)
 3. Tell the user: "I found a violation in my approach: [what it is]. I stopped before proceeding."
 
@@ -254,7 +254,7 @@ If you discover you:
 - About to guess instead of research
 
 **THEN**: STOP. Do NOT proceed to Step 6. Instead:
-1. Document the violation in CLAUDE.local.md
+1. Document the violation in docs/compliance/non-compliance-events.md
 2. Follow the commit/backup procedure (lines 76-97)
 3. THEN ask user for direction
 
