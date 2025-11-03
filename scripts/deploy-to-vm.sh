@@ -20,6 +20,7 @@ if [[ -z "$VM_IP" ]]; then
   echo "Components:"
   echo "  wayvnc (default) - Deploy wayvnc monitor service"
   echo "  greetd           - Reconfigure greetd display manager"
+  echo "  partition        - Deploy updated partition-selection assets"
   echo "  all              - Deploy both wayvnc and greetd"
   exit 1
 fi
@@ -35,6 +36,20 @@ ssh $SSH_OPTS -o ConnectTimeout=5 "$SSH_USER@$VM_IP" "echo 'SSH OK'" || {
   exit 1
 }
 echo "✓ SSH connection established"
+
+
+# Function to deploy partition selection updates
+deploy_partition_selection() {
+  echo ""
+  echo "Deploying partition selection assets..."
+
+  # Copy all files (reuses SSH session, no password needed)
+  scp $SSH_OPTS -q bin/omarchy-partition-select "$SSH_USER@$VM_IP:/root/omarchy/bin/omarchy-partition-select"
+  scp $SSH_OPTS -q ../omarchy-advanced-iso/configs/airootfs/root/configurator "$SSH_USER@$VM_IP:/root/configurator"
+  scp $SSH_OPTS -q ./scripts/setup-partition-test-disk.sh "$SSH_USER@$VM_IP:/root/omarchy/scripts/setup-partition-test-disk.sh"
+  echo "✓ Files copied to VM"
+
+}
 
 # Function to deploy wayvnc monitor
 deploy_wayvnc() {
@@ -80,9 +95,13 @@ case "$COMPONENT" in
   greetd)
     deploy_greetd
     ;;
+  partition)
+    deploy_partition_selection
+	;;
   all)
     deploy_wayvnc
     deploy_greetd
+	deploy_partition_selection
     ;;
   *)
     echo "ERROR: Unknown component '$COMPONENT'"
