@@ -95,6 +95,20 @@ mapfile -t options < <(
   ' <<<"$lsblk_json"
 )
 
+filtered_options=()
+min_size_bytes=$((14 * 1024 * 1024 * 1024))
+for line in "${options[@]}"; do
+  device=$(printf "%s\n" "$line" | grep -oE '/dev/[a-z0-9]+' | tail -1)
+  if [[ "$line" =~ [└├] && -n "$device" ]]; then
+    size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
+    if (( size_bytes < min_size_bytes )); then
+      continue
+    fi
+  fi
+  filtered_options+=("$line")
+done
+options=("${filtered_options[@]}")
+
 if ((${#options[@]} == 0)); then
   echo "No disks or partitions found to display." >&2
   exit 1
