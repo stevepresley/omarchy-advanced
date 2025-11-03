@@ -343,6 +343,12 @@ If prompted, please ignore the encryption prompts in order to connect.
 1. ⚠️ **Pre_mount bug fix** - Changed to `"config_type": "Pre_mount"` in configurator (line 629) - CODE EXISTS, NOT TESTED
 2. ⚠️ **Whole disk boot/ESP handling** - Code exists for FAT32 ESP + Btrfs root, but NOT TESTED on live ISO
 3. ❌ **Single partition boot/ESP handling** - KNOWN TO FAIL per partition-selection-formatting-details.md line 31: "Selecting a single partition fails because archinstall probes sibling, sees old Btrfs signature, and aborts"
+   - **VALIDATED (2025-11-03)**: Root cause identified in configurator lines 186-224
+   - **Problem**: `prepare_install_target()` for single partition mode calls `wipefs -a "$partition"` (line 199) which ONLY wipes the selected partition
+   - **Missing**: Does NOT wipe SIBLING partitions on the same disk that have stale filesystem signatures
+   - **Why it fails**: When archinstall runs, it probes the disk and sees old Btrfs/other signatures on sibling partitions, causing abort while mounting
+   - **Required fix**: After line 197 (`cleanup_disk_children`), add code to wipe sibling partitions on same disk before the GPT carving begins
+   - **Code pattern needed**: Loop through all partitions on the disk (except selected one), run `wipefs -a` on each sibling
 4. ⚠️ **Small partition filtering** - Partitions <14GiB hidden (code at line 99) - NOT TESTED
 5. ⚠️ **Partition selection binary path** - Fixed to `/root/omarchy/bin/` (line 375) - CODE EXISTS, NOT TESTED
 6. ⚠️ **Encrypted partition indicator** - RED "(ENCRYPTED)" code at line 59 - CODE EXISTS, NOT TESTED
