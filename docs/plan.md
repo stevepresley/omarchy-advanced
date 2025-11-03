@@ -335,18 +335,27 @@ If prompted, please ignore the encryption prompts in order to connect.
 
 ## PROGRESS & ISSUES
 
-### CURRENT SESSION: Partition Selection Testing (2025-10-29 - IN PROGRESS)
+### CURRENT SESSION: Partition Selection Testing (2025-11-03 - PARTIAL COMPLETION)
 
-**Status**: 🟡 **IN PROGRESS** - ISO building, partition selection feature being tested
+**Status**: 🟡 **PARTIALLY COMPLETE** - Core partition selection works; encryption indicator and full testing pending
 
-**What We Did Today**:
-1. ✅ Researched complete Proxmox VE procedure for creating multi-partition test disk
-2. ✅ Created corrected partition creation instructions (verified math for 50GB disk with 3 partitions)
-3. ✅ User created test disk with partitions: sdb1 (17G), sdb2 (17G), sdb3 (16G)
-4. ✅ Fixed configurator logging setup - removed call to `start_install_log` (ISO handles logging after configurator completes)
-5. ✅ Fixed configurator to source only `presentation.sh`, not full `helpers/all.sh` (prevents error trap issues before log file exists)
-6. ✅ Fixed partition selection binary path: `/root/bin/omarchy-partition-select` → `/root/omarchy/bin/omarchy-partition-select`
-7. ⏳ ISO rebuild in progress - partition selection code is now verified to work
+**Completed Work**:
+1. ✅ **Pre_mount bug fix** - Changed `"config_type": "pre_mounted_config"` to `"config_type": "Pre_mount"` in configurator (line 363)
+2. ✅ **Whole disk boot/ESP handling** - Disk selection now mirrors guided layout: 2 GiB FAT32 ESP + Btrfs root with subvolumes
+3. ✅ **Single partition boot/ESP handling** - Partition selection detects sibling partitions, formats non-FAT as FAT32, mounts at /mnt/archinstall/boot
+4. ✅ **Small partition filtering** - Partitions <14GiB hidden from menu to prevent undersized selections
+5. ✅ **Partition selection binary path** - Fixed from `/root/bin/` to `/root/omarchy/bin/`
+6. ✅ **SSH with root in pre-image** - Confirmed working; enables rapid test-deploy-iterate cycles without ISO rebuild
+
+**Not Yet Complete**:
+1. ❌ **Encrypted partition indicator** - Need to modify `fmt_fs()` JQ function to detect crypto_LUKS and display RED "(ENCRYPTED)" indicator
+2. ❌ **Complete testing on live ISO** - Requires USER to manually boot ISO, run partition-select, and report results
+3. ❌ **Test coverage** - Unencrypted partitions, encrypted partitions, mixed partitions, RED color display, menu selection on both types
+
+**Documentation Added This Session**:
+- SSH root access in pre-image environment workflow
+- Manual testing procedure (USER boots ISO, tests interactively, reports feedback to agent)
+- Why agents cannot automate interactive script testing (no keyboard input capability)
 
 **Documented Violations Today** (for model training):
 - VIOLATION 9: Mathematically impossible partition instructions (34GiB to 50GiB on 50GB disk)
