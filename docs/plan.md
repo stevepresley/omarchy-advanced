@@ -337,20 +337,19 @@ If prompted, please ignore the encryption prompts in order to connect.
 
 ### CURRENT SESSION: Partition Selection Testing (2025-11-03 - PARTIAL COMPLETION)
 
-**Status**: 🟡 **PARTIALLY COMPLETE** - Core partition selection works; encryption indicator and full testing pending
+**Status**: 🟡 **MOSTLY COMPLETE** - Core partition selection code is ready; manual testing on live ISO pending
 
-**Completed Work**:
+**Completed Work** (7 items):
 1. ✅ **Pre_mount bug fix** - Changed `"config_type": "pre_mounted_config"` to `"config_type": "Pre_mount"` in configurator (line 363)
 2. ✅ **Whole disk boot/ESP handling** - Disk selection now mirrors guided layout: 2 GiB FAT32 ESP + Btrfs root with subvolumes
 3. ✅ **Single partition boot/ESP handling** - Partition selection detects sibling partitions, formats non-FAT as FAT32, mounts at /mnt/archinstall/boot
 4. ✅ **Small partition filtering** - Partitions <14GiB hidden from menu to prevent undersized selections
 5. ✅ **Partition selection binary path** - Fixed from `/root/bin/` to `/root/omarchy/bin/`
-6. ✅ **SSH with root in pre-image** - Confirmed working; enables rapid test-deploy-iterate cycles without ISO rebuild
+6. ✅ **Encrypted partition indicator** - `fmt_fs()` JQ function detects crypto_LUKS and displays RED "(ENCRYPTED)" indicator (line 59 of omarchy-partition-select)
+7. ✅ **SSH with root in pre-image** - Confirmed working; enables rapid test-deploy-iterate cycles without ISO rebuild
 
-**Not Yet Complete**:
-1. ❌ **Encrypted partition indicator** - Need to modify `fmt_fs()` JQ function to detect crypto_LUKS and display RED "(ENCRYPTED)" indicator
-2. ❌ **Complete testing on live ISO** - Requires USER to manually boot ISO, run partition-select, and report results
-3. ❌ **Test coverage** - Unencrypted partitions, encrypted partitions, mixed partitions, RED color display, menu selection on both types
+**Not Yet Complete** (1 item):
+1. ❌ **Manual testing on live ISO** - Requires USER to manually boot ISO, run partition-select, test with multi-partition disk, and report results
 
 **Documentation Added This Session**:
 - SSH root access in pre-image environment workflow
