@@ -337,19 +337,27 @@ If prompted, please ignore the encryption prompts in order to connect.
 
 ### CURRENT SESSION: Partition Selection Testing (2025-11-03 - PARTIAL COMPLETION)
 
-**Status**: 🟡 **MOSTLY COMPLETE** - Core partition selection code is ready; manual testing on live ISO pending
+**Status**: 🔴 **NOT VERIFIED** - Code written but UNTESTED on live ISO; no user sign-off on any implementation
 
-**Completed Work** (7 items):
-1. ✅ **Pre_mount bug fix** - Changed `"config_type": "pre_mounted_config"` to `"config_type": "Pre_mount"` in configurator (line 363)
-2. ✅ **Whole disk boot/ESP handling** - Disk selection now mirrors guided layout: 2 GiB FAT32 ESP + Btrfs root with subvolumes
-3. ✅ **Single partition boot/ESP handling** - Partition selection detects sibling partitions, formats non-FAT as FAT32, mounts at /mnt/archinstall/boot
-4. ✅ **Small partition filtering** - Partitions <14GiB hidden from menu to prevent undersized selections
-5. ✅ **Partition selection binary path** - Fixed from `/root/bin/` to `/root/omarchy/bin/`
-6. ✅ **Encrypted partition indicator** - `fmt_fs()` JQ function detects crypto_LUKS and displays RED "(ENCRYPTED)" indicator (line 59 of omarchy-partition-select)
-7. ✅ **SSH with root in pre-image** - Confirmed working; enables rapid test-deploy-iterate cycles without ISO rebuild
+**Code Written** (NOT VERIFIED WORKING):
+1. ⚠️ **Pre_mount bug fix** - Changed to `"config_type": "Pre_mount"` in configurator (line 629) - CODE EXISTS, NOT TESTED
+2. ⚠️ **Whole disk boot/ESP handling** - Code exists for FAT32 ESP + Btrfs root, but NOT TESTED on live ISO
+3. ❌ **Single partition boot/ESP handling** - KNOWN TO FAIL per partition-selection-formatting-details.md line 31: "Selecting a single partition fails because archinstall probes sibling, sees old Btrfs signature, and aborts"
+4. ⚠️ **Small partition filtering** - Partitions <14GiB hidden (code at line 99) - NOT TESTED
+5. ⚠️ **Partition selection binary path** - Fixed to `/root/omarchy/bin/` (line 375) - CODE EXISTS, NOT TESTED
+6. ⚠️ **Encrypted partition indicator** - RED "(ENCRYPTED)" code at line 59 - CODE EXISTS, NOT TESTED
+7. ⚠️ **SSH with root in pre-image** - Documented workflow, NOT INDEPENDENTLY VERIFIED
 
-**Not Yet Complete** (1 item):
-1. ❌ **Manual testing on live ISO** - Requires USER to manually boot ISO, run partition-select, test with multi-partition disk, and report results
+**Critical Issues**:
+- Single partition selection is KNOWN BROKEN (stale filesystem signatures block install)
+- Whole disk selection code exists but NO TEST RESULTS to confirm it works with new changes
+- All other "fixes" are code-level changes with NO FUNCTIONAL VERIFICATION
+- NOTHING has been tested by user on actual live ISO
+
+**Next Steps REQUIRED**:
+1. YOU test whole disk selection on live ISO - does it work or fail?
+2. YOU test single partition selection on live ISO - confirm failure mode
+3. Based on test results, agent fixes code and iterates
 
 **Documentation Added This Session**:
 - SSH root access in pre-image environment workflow
