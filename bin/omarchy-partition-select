@@ -156,7 +156,14 @@ prepare_partition_layout() {
     echo "Error: Failed to delete partition $partition from $disk" >&2
     return 1
   fi
+  log_debug "Partition $partnum deleted successfully"
+
   refresh_partition_table "$disk"
+
+  {
+    echo "--- lsblk tree AFTER partition deletion and refresh ---"
+    lsblk -lnpo NAME,TYPE,MOUNTPOINTS "/dev/$disk"
+  } >>"$CONFIG_LOG" 2>&1
 
   log_debug "Creating new ESP partition on $disk"
   if ! parted -s "/dev/$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then

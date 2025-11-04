@@ -37,20 +37,6 @@ ssh $SSH_OPTS -o ConnectTimeout=5 "$SSH_USER@$VM_IP" "echo 'SSH OK'" || {
 }
 echo "✓ SSH connection established"
 
-
-# Function to deploy partition selection updates
-deploy_partition_selection() {
-  echo ""
-  echo "Deploying partition selection assets..."
-
-  # Copy all files (reuses SSH session, no password needed)
-  scp $SSH_OPTS -q bin/omarchy-partition-select "$SSH_USER@$VM_IP:/root/omarchy/bin/omarchy-partition-select"
-  scp $SSH_OPTS -q ../omarchy-advanced-iso/configs/airootfs/root/configurator "$SSH_USER@$VM_IP:/root/configurator"
-  scp $SSH_OPTS -q ./scripts/setup-partition-test-disk.sh "$SSH_USER@$VM_IP:/root/omarchy/scripts/setup-partition-test-disk.sh"
-  echo "✓ Files copied to VM"
-
-}
-
 # Function to deploy wayvnc monitor
 deploy_wayvnc() {
   echo ""
@@ -87,7 +73,20 @@ deploy_greetd() {
   ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo bash /tmp/fix-omarchy-advanced-session.sh
 }
 
-# Function to deploy wayvnc monitor
+
+# Function to deploy partition selection updates
+deploy_partition_selection() {
+  echo ""
+  echo "Deploying partition selection assets..."
+
+  # Copy all files (reuses SSH session, no password needed)
+  scp $SSH_OPTS -q bin/omarchy-partition-select "$SSH_USER@$VM_IP:/root/omarchy/bin/omarchy-partition-select"
+  scp $SSH_OPTS -q ../omarchy-advanced-iso/configs/airootfs/root/configurator "$SSH_USER@$VM_IP:/root/configurator"
+  scp $SSH_OPTS -q ./scripts/setup-partition-test-disk.sh "$SSH_USER@$VM_IP:/root/omarchy/scripts/setup-partition-test-disk.sh"
+  echo "✓ Files copied to VM"
+
+}
+# Function to copy logs from VM to local logs folder
 copy_logs_from_vm() {
   echo ""
   echo "Copying logs from VM..."
