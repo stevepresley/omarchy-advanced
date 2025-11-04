@@ -143,6 +143,11 @@ prepare_partition_layout() {
   [[ -z "$partnum" ]] && { echo "Error: Failed to extract partition number from $partition" >&2; return 1; }
 
   log_debug "Replacing selected partition with ESP + root partitions"
+  {
+    echo "--- lsblk tree BEFORE partition operations ---"
+    lsblk -lnpo NAME,TYPE,MOUNTPOINTS "/dev/$disk"
+  } >>"$CONFIG_LOG" 2>&1
+
   log_debug "Deleting partition $partnum from disk $disk"
 
   prepare_disk_for_repartitioning "$disk"
