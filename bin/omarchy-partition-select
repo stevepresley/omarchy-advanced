@@ -95,10 +95,118 @@ refresh_partition_table() {
   fi
 }
 
+find_partition_boundaries() {
+  local disk="$1"
+  local is_empty_disk="$2"  # true for whole disk, false for partition replacement
+
+  # Output variables will be set as echo statements
+  local parted_output
+  local free_start
+  local free_end
+  local free_size_str
+  local free_size_num
+  local free_num
+  local esp_end_num
+  local esp_end
+  local root_end
+
+  if [[ "$is_empty_disk" == "true" ]]; then
+    # For empty disk, entire disk is free space (start=0, end=100%)
+    log_debug "Empty disk - using full disk boundaries for partitions"
+    free_start="0"
+    free_end="100%"
+    esp_end="2049MiB"
+    root_end="100%"
+  else
+    # Extract free space boundaries dynamically using parted print free
+    log_debug "Extracting free space boundaries from $disk"
+    parted_output=$(parted /dev/$disk print free 2>/dev/null)
+    log_debug "parted print free output:"
+    echo "$parted_output" | while read line; do
+      log_debug "$line"
+    done
+
+    # Find the first free space region that is >= 2GB (2048MB)
+    free_start=""
+    free_end=""
+
+    while IFS=$'|' read -r free_start free_end free_size_str; do
+      if [[ -z "$free_start" ]]; then
+        continue
+      fi
+
+      # Extract numeric value and unit from size string
+      free_size_str=$(echo "$free_size_str" | xargs)
+      free_size_num=$(echo "$free_size_str" | grep -oE '^[0-9]+\.?[0-9]*')
+      free_unit=$(echo "$free_size_str" | grep -oE '[A-Z]+$')
+
+      # Convert to MB for comparison
+      case "$free_unit" in
+        GB)
+          free_size_num=$(echo "$free_size_num * 1024" | bc -l | awk '{printf "%.0f", $0}')
+          ;;
+        MB)
+          free_size_num=$(echo "$free_size_num" | awk '{printf "%.0f", $0}')
+          ;;
+        *)
+          free_size_num=$(echo "$free_size_num / 1024" | bc -l | awk '{printf "%.0f", $0}')
+          ;;
+      esac
+
+      log_debug "Found free space: $free_start to $free_end, size: $free_size_str (converted to ${free_size_num}MB)"
+
+      if (( free_size_num >= 2048 )); then
+        log_debug "Selected free space: $free_start to $free_end (${free_size_num}MB available)"
+        break
+      fi
+    done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}' | tail -n +2)
+
+    if [[ -z "$free_start" ]] || [[ -z "$free_end" ]]; then
+      echo "Error: No free space region with at least 2GB available found on $disk" >&2
+      log_debug "Failed to find 2GB+ free space region on $disk"
+      return 1
+    fi
+
+    # Calculate ESP end
+    free_num=$(echo "$free_start" | sed 's/[^0-9]//g')
+    esp_end_num=$((free_num + 2048))
+    esp_end="${esp_end_num}MB"
+    log_debug "Calculated ESP boundaries: $free_start to $esp_end"
+
+    # Determine root partition end boundary
+    local partitions_after_free_space
+    partitions_after_free_space=$(parted -s "/dev/$disk" print 2>/dev/null | awk -v free_end="$free_end" '
+      /^[[:space:]]*[0-9]+/ {
+        partition_end=$3
+        partition_end_num=partition_end
+        gsub(/[A-Za-z]+$/, "", partition_end_num)
+        free_end_num=free_end
+        gsub(/[A-Za-z]+$/, "", free_end_num)
+        if (partition_end_num + 0 > free_end_num + 0) {
+          print "yes"
+          exit
+        }
+      }
+    ')
+
+    if [[ -n "$partitions_after_free_space" ]]; then
+      root_end="$free_end"
+      log_debug "Partitions exist after free space - using free_end ($free_end) as root partition boundary"
+    else
+      root_end="100%"
+      log_debug "No partitions after free space - using disk end (100%) as root partition boundary"
+    fi
+  fi
+
+  # Output boundaries for caller to use
+  echo "$free_start|$esp_end|$root_end"
+}
+
 prepare_disk_layout() {
   local disk="$1"
   local boot_partition
   local root_partition
+  local boundaries
 
   prepare_disk_for_repartitioning "$disk"
 
@@ -116,7 +224,12 @@ prepare_disk_layout() {
   fi
   refresh_partition_table "$disk"
 
-  if ! parted -s "/dev/$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
+  # Get partition boundaries - use true for empty disk
+  boundaries=$(find_partition_boundaries "$disk" "true") || return 1
+  IFS='|' read -r free_start esp_end root_end <<<"$boundaries"
+
+  log_debug "Creating ESP partition: $free_start to $esp_end"
+  if ! parted -s "/dev/$disk" mkpart primary fat32 "$free_start" "$esp_end" >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create FAT32 boot partition" >&2
     return 1
   fi
@@ -125,7 +238,8 @@ prepare_disk_layout() {
   parted -s "/dev/$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to mark ESP partition" >&2; return 1; }
   refresh_partition_table "$disk"
 
-  if ! parted -s "/dev/$disk" mkpart primary btrfs 2049MiB 100% >>"$CONFIG_LOG" 2>&1; then
+  log_debug "Creating root partition: $esp_end to $root_end"
+  if ! parted -s "/dev/$disk" mkpart primary btrfs "$esp_end" "$root_end" >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create root partition" >&2
     return 1
   fi
@@ -231,6 +345,10 @@ prepare_partition_layout() {
   local partition="$1"
   local disk
   local partnum
+  local boundaries
+  local free_start
+  local esp_end
+  local root_end
 
   disk=$(lsblk -no PKNAME "$partition" 2>/dev/null | head -n1)
   [[ -z "$disk" ]] && { echo "Error: Failed to determine disk for partition $partition" >&2; return 1; }
@@ -252,74 +370,9 @@ prepare_partition_layout() {
 
   refresh_partition_table "$disk"
 
-  # Extract free space boundaries dynamically using parted print free
-  local parted_output
-  local free_start
-  local free_end
-  local free_size_str
-  local free_size_num
-  local free_num
-  local esp_end_num
-  local esp_end
-
-  # Log the parted output for debugging
-  parted_output=$(parted /dev/$disk print free 2>/dev/null)
-  log_debug "parted print free output:"
-  echo "$parted_output" | while read line; do
-    log_debug "$line"
-  done
-
-  # Find the first free space region that is >= 2GB (2048MB)
-  # Use awk to parse parted output - handles variable whitespace naturally
-  free_start=""
-  free_end=""
-
-  # Parse with awk: look for lines containing "Free Space" and extract start, end, size
-  while IFS=$'|' read -r free_start free_end free_size_str; do
-    if [[ -z "$free_start" ]]; then
-      continue
-    fi
-
-    # Extract numeric value and unit from size string (e.g., "17.2GB" -> 17.2 GB)
-    free_size_str=$(echo "$free_size_str" | xargs)  # Trim whitespace
-    free_size_num=$(echo "$free_size_str" | grep -oE '^[0-9]+\.?[0-9]*')
-    free_unit=$(echo "$free_size_str" | grep -oE '[A-Z]+$')
-
-    # Convert to MB for comparison
-    case "$free_unit" in
-      GB)
-        free_size_num=$(echo "$free_size_num * 1024" | bc -l | awk '{printf "%.0f", $0}')
-        ;;
-      MB)
-        free_size_num=$(echo "$free_size_num" | awk '{printf "%.0f", $0}')
-        ;;
-      *)
-        # kB - convert to MB
-        free_size_num=$(echo "$free_size_num / 1024" | bc -l | awk '{printf "%.0f", $0}')
-        ;;
-    esac
-
-    log_debug "Found free space: $free_start to $free_end, size: $free_size_str (converted to ${free_size_num}MB)"
-
-    # If this free space is >= 2GB (2048MB), use it
-    if (( free_size_num >= 2048 )); then
-      log_debug "Selected free space: $free_start to $free_end (${free_size_num}MB available)"
-      break
-    fi
-  done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}' | tail -n +2)  # Skip first "Free Space" (the header line) if it exists
-
-  # Validate that we found suitable free space
-  if [[ -z "$free_start" ]] || [[ -z "$free_end" ]]; then
-    echo "Error: No free space region with at least 2GB available found on $disk" >&2
-    log_debug "Failed to find 2GB+ free space region on $disk"
-    return 1
-  fi
-
-  # Extract numeric part of start address and add 2048 MiB for ESP end (2GB = 2048 MiB)
-  free_num=$(echo "$free_start" | sed 's/[^0-9]//g')
-  esp_end_num=$((free_num + 2048))
-  esp_end="${esp_end_num}MB"
-  log_debug "Calculated ESP boundaries: $free_start to $esp_end"
+  # Get partition boundaries using refactored function - use false for existing partitions
+  boundaries=$(find_partition_boundaries "$disk" "false") || return 1
+  IFS='|' read -r free_start esp_end root_end <<<"$boundaries"
 
   log_debug "Creating new ESP partition on $disk"
   if ! parted -s "/dev/$disk" mkpart primary fat32 "$free_start" "$esp_end" >>"$CONFIG_LOG" 2>&1; then
@@ -333,39 +386,6 @@ prepare_partition_layout() {
     return 1
   fi
   refresh_partition_table "$disk"
-
-  # Determine root partition end boundary
-  # If there are partitions after the free space, use free_end; otherwise use 100% (disk end)
-  local root_end
-  local partitions_after_free_space
-
-  # Check if any partitions exist after the free space boundary
-  partitions_after_free_space=$(parted -s "/dev/$disk" print 2>/dev/null | awk -v free_end="$free_end" '
-    /^[[:space:]]*[0-9]+/ {
-      # Extract partition end (column 3)
-      partition_end=$3
-      # Use gsub to remove units from both values for numeric comparison
-      partition_end_num=partition_end
-      gsub(/[A-Za-z]+$/, "", partition_end_num)
-
-      free_end_num=free_end
-      gsub(/[A-Za-z]+$/, "", free_end_num)
-
-      # Convert to numbers for comparison
-      if (partition_end_num + 0 > free_end_num + 0) {
-        print "yes"
-        exit
-      }
-    }
-  ')
-
-  if [[ -n "$partitions_after_free_space" ]]; then
-    root_end="$free_end"
-    log_debug "Partitions exist after free space - using free_end ($free_end) as root partition boundary"
-  else
-    root_end="100%"
-    log_debug "No partitions after free space - using disk end (100%) as root partition boundary"
-  fi
 
   log_debug "Creating new root partition on $disk"
   if ! parted -s "/dev/$disk" mkpart primary btrfs "$esp_end" "$root_end" >>"$CONFIG_LOG" 2>&1; then
