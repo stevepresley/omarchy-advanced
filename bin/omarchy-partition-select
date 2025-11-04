@@ -12,6 +12,158 @@ set -euo pipefail
 
 source "$OMARCHY_PATH/install/helpers/presentation.sh"
 error_message=""
+CONFIG_LOG="/tmp/partition-select.log"
+touch "$CONFIG_LOG" 2>/dev/null || true
+
+log_debug() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$CONFIG_LOG"
+}
+
+# === PARTITION PREP FUNCTIONS (copied from configurator) ===
+
+cleanup_disk_children() {
+  local disk="$1"
+  log_debug "Detaching existing mappings on $disk"
+  {
+    echo "--- lsblk tree for $disk ---"
+    lsblk -lnpo NAME,TYPE,MOUNTPOINTS "$disk"
+    echo "--- /proc/swaps ---"
+    cat /proc/swaps
+  } >>"$CONFIG_LOG" 2>&1
+
+  while read -r child child_type; do
+    [[ -z "$child" ]] && continue
+    log_debug "Processing child $child (type=$child_type)"
+    case "$child_type" in
+      part)
+        if awk 'NR>1 {print $1}' /proc/swaps 2>/dev/null | grep -Fxq "$child"; then
+          log_debug "swapoff $child"
+          swapoff "$child" >>"$CONFIG_LOG" 2>&1 || log_debug "swapoff failed for $child"
+        fi
+        mapfile -t targets < <(findmnt -rn "$child" -o TARGET 2>/dev/null || true)
+        if ((${#targets[@]})); then
+          mapfile -t targets < <(printf '%s\n' "${targets[@]}" | awk 'NF' | sort -r)
+        fi
+        for target in "${targets[@]}"; do
+          [[ -z "$target" ]] && continue
+          log_debug "umount $target"
+          if ! umount "$target" >>"$CONFIG_LOG" 2>&1; then
+            log_debug "umount failed for $target, retrying with -R"
+            umount -R "$target" >>"$CONFIG_LOG" 2>&1 || log_debug "umount -R failed for $target"
+          fi
+        done
+        ;;
+      crypt)
+        mapfile -t targets < <(findmnt -rn "$child" -o TARGET 2>/dev/null || true)
+        if ((${#targets[@]})); then
+          mapfile -t targets < <(printf '%s\n' "${targets[@]}" | awk 'NF' | sort -r)
+        fi
+        for target in "${targets[@]}"; do
+          [[ -z "$target" ]] && continue
+          log_debug "umount $target (crypt)"
+          if ! umount "$target" >>"$CONFIG_LOG" 2>&1; then
+            log_debug "umount failed for $target, retrying with -R"
+            umount -R "$target" >>"$CONFIG_LOG" 2>&1 || log_debug "umount -R failed for $target"
+          fi
+        done
+        if command -v cryptsetup >/dev/null 2>&1; then
+          local mapper_name
+          mapper_name=$(lsblk -no NAME "$child" 2>/dev/null | head -n1)
+          if [[ -n "$mapper_name" ]]; then
+            log_debug "Closing LUKS mapping $mapper_name"
+            cryptsetup close "$mapper_name" >>"$CONFIG_LOG" 2>&1 || log_debug "Failed to close $mapper_name"
+          fi
+        fi
+        ;;
+      *)
+        log_debug "No cleanup actions for child type $child_type"
+        ;;
+    esac
+  done < <(lsblk -lnpo NAME,TYPE "$disk" | tail -n +2)
+
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm settle >>"$CONFIG_LOG" 2>&1 || true
+  fi
+}
+
+prepare_disk_layout() {
+  local disk="$1"
+  cleanup_disk_children "$disk"
+
+  log_debug "Creating ESP and root partitions on $disk"
+  if ! wipefs -a "$disk" >>"$CONFIG_LOG" 2>&1; then
+    log_debug "wipefs failed on $disk"
+    echo "Error: Failed to wipe disk signatures" >&2
+    return 1
+  fi
+  if ! parted -s "$disk" mklabel gpt >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create GPT label" >&2
+    return 1
+  fi
+  if ! parted -s "$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create FAT32 boot partition" >&2
+    return 1
+  fi
+  parted -s "$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to mark ESP partition" >&2; return 1; }
+  if ! parted -s "$disk" mkpart primary btrfs 2049MiB 100% >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create root partition" >&2
+    return 1
+  fi
+  partprobe "$disk" >>"$CONFIG_LOG" 2>&1 || true
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm settle >>"$CONFIG_LOG" 2>&1 || true
+  fi
+
+  log_debug "Created boot and root partitions on $disk"
+}
+
+prepare_partition_layout() {
+  local partition="$1"
+  local disk
+  local partnum
+
+  disk=$(lsblk -no PKNAME "$partition" 2>/dev/null | head -n1)
+  [[ -z "$disk" ]] && { echo "Error: Failed to determine disk for partition $partition" >&2; return 1; }
+
+  partnum="${partition##*[!0-9]}"
+  [[ -z "$partnum" ]] && { echo "Error: Failed to extract partition number from $partition" >&2; return 1; }
+
+  log_debug "Replacing selected partition with ESP + root partitions"
+  log_debug "Deleting partition $partnum from disk $disk"
+
+  cleanup_disk_children "$disk"
+
+  if ! parted -s "$disk" rm "$partnum" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to delete partition $partition from $disk" >&2
+    return 1
+  fi
+
+  log_debug "Creating new ESP partition on $disk"
+  if ! parted -s "$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create ESP partition on $disk" >&2
+    return 1
+  fi
+
+  if ! parted -s "$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mark ESP partition" >&2
+    return 1
+  fi
+
+  log_debug "Creating new root partition on $disk"
+  if ! parted -s "$disk" mkpart primary btrfs 2049MiB 100% >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create root partition on $disk" >&2
+    return 1
+  fi
+
+  partprobe "$disk" >>"$CONFIG_LOG" 2>&1 || true
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm settle >>"$CONFIG_LOG" 2>&1 || true
+  fi
+
+  log_debug "Successfully replaced partition with new ESP and root on $disk"
+}
+
+# === END PARTITION PREP FUNCTIONS ===
 
 if command -v gum >/dev/null 2>&1; then
   selector_cmd=("gum" "choose" "--header" "Select install target (disk or partition)")
