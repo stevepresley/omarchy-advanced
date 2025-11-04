@@ -21,7 +21,7 @@ log_debug() {
 
 # === PARTITION PREP FUNCTIONS (copied from configurator) ===
 
-cleanup_disk_children() {
+prepare_disk_for_repartitioning() {
   local disk="$1"
   log_debug "Detaching existing mappings on $disk"
   {
@@ -88,7 +88,7 @@ cleanup_disk_children() {
 
 prepare_disk_layout() {
   local disk="$1"
-  cleanup_disk_children "$disk"
+  prepare_disk_for_repartitioning "$disk"
 
   log_debug "Creating ESP and root partitions on $disk"
   if ! wipefs -a "$disk" >>"$CONFIG_LOG" 2>&1; then
@@ -131,7 +131,7 @@ prepare_partition_layout() {
   log_debug "Replacing selected partition with ESP + root partitions"
   log_debug "Deleting partition $partnum from disk $disk"
 
-  cleanup_disk_children "$disk"
+  prepare_disk_for_repartitioning "$disk"
 
   if ! parted -s "$disk" rm "$partnum" >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to delete partition $partition from $disk" >&2
