@@ -97,6 +97,9 @@ refresh_partition_table() {
 
 prepare_disk_layout() {
   local disk="$1"
+  local boot_partition
+  local root_partition
+
   prepare_disk_for_repartitioning "$disk"
 
   log_debug "Creating ESP and root partitions on $disk"
@@ -129,6 +132,99 @@ prepare_disk_layout() {
   refresh_partition_table "$disk"
 
   log_debug "Created boot and root partitions on $disk"
+
+  # === FORMAT PARTITIONS AND CREATE SUBVOLUMES ===
+  boot_partition="/dev/${disk}1"
+  root_partition="/dev/${disk}2"
+
+  log_debug "Formatting ESP partition: $boot_partition"
+  if ! mkfs.fat -F 32 "$boot_partition" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to format ESP partition" >&2
+    return 1
+  fi
+
+  log_debug "Formatting root partition: $root_partition as Btrfs"
+  if ! mkfs.btrfs -f "$root_partition" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to format root partition as Btrfs" >&2
+    return 1
+  fi
+
+  # Create mount point
+  mkdir -p /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to create mount point" >&2; return 1; }
+
+  log_debug "Mounting root partition with compression"
+  if ! mount -o compress=zstd "$root_partition" /mnt/archinstall >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount root partition" >&2
+    return 1
+  fi
+
+  log_debug "Creating BTRFS subvolumes"
+  if ! btrfs subvolume create /mnt/archinstall/@ >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create @ subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! btrfs subvolume create /mnt/archinstall/@home >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create @home subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! btrfs subvolume create /mnt/archinstall/@log >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create @log subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! btrfs subvolume create /mnt/archinstall/@pkg >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create @pkg subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  log_debug "Unmounting to remount with subvolumes"
+  if ! umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to unmount root partition" >&2
+    return 1
+  fi
+
+  log_debug "Remounting with subvolumes"
+  if ! mount -o compress=zstd,subvol=@ "$root_partition" /mnt/archinstall >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount @ subvolume" >&2
+    return 1
+  fi
+
+  # Create subdirectories for other subvolumes
+  mkdir -p /mnt/archinstall/{home,var/log,var/cache/pacman/pkg} >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to create subdirectories" >&2; umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true; return 1; }
+
+  if ! mount -o compress=zstd,subvol=@home "$root_partition" /mnt/archinstall/home >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount @home subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! mount -o compress=zstd,subvol=@log "$root_partition" /mnt/archinstall/var/log >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount @log subvolume" >&2
+    umount -R /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! mount -o compress=zstd,subvol=@pkg "$root_partition" /mnt/archinstall/var/cache/pacman/pkg >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount @pkg subvolume" >&2
+    umount -R /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  log_debug "Mounting boot partition at /mnt/archinstall/boot"
+  mkdir -p /mnt/archinstall/boot >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to create boot directory" >&2; umount -R /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true; return 1; }
+  if ! mount "$boot_partition" /mnt/archinstall/boot >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount boot partition" >&2
+    umount -R /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  log_debug "All partitions formatted, subvolumes created, and mounted successfully"
 }
 
 prepare_partition_layout() {
@@ -421,10 +517,20 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
         error_message="Error: Failed to prepare partition layout for $device. Check $CONFIG_LOG for details."
       fi
     else
-      # User selected a whole disk - return as-is for archinstall to handle
-      log_debug "Disk selected: $device, returning as-is"
-      printf "%s\n" "$device"
-      break
+      # User selected a whole disk - prepare it internally
+      log_debug "Disk selected: $device, preparing layout"
+      disk_name="${device##*/}"  # Extract disk name from path (e.g., 'sdb' from '/dev/sdb')
+      if prepare_disk_layout "$disk_name"; then
+        log_debug "Disk layout prepared successfully"
+        # After prepare_disk_layout, get the newly created partitions
+        boot_partition="/dev/${disk_name}1"
+        root_partition="/dev/${disk_name}2"
+        log_debug "Returning boot and root partitions: $boot_partition|$root_partition"
+        printf "%s|%s\n" "$boot_partition" "$root_partition"
+        break
+      else
+        error_message="Error: Failed to prepare disk layout for $device. Check $CONFIG_LOG for details."
+      fi
     fi
   else
    # partition_size_display=$(num fmt --to=iec-i --suffix=B $partition_size_bytes 2>/dev/null || echo "unknown size")
