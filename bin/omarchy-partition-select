@@ -91,25 +91,25 @@ prepare_disk_layout() {
   prepare_disk_for_repartitioning "$disk"
 
   log_debug "Creating ESP and root partitions on $disk"
-  if ! wipefs -a "$disk" >>"$CONFIG_LOG" 2>&1; then
+  if ! wipefs -a "/dev/$disk" >>"$CONFIG_LOG" 2>&1; then
     log_debug "wipefs failed on $disk"
     echo "Error: Failed to wipe disk signatures" >&2
     return 1
   fi
-  if ! parted -s "$disk" mklabel gpt >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" mklabel gpt >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create GPT label" >&2
     return 1
   fi
-  if ! parted -s "$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create FAT32 boot partition" >&2
     return 1
   fi
-  parted -s "$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to mark ESP partition" >&2; return 1; }
-  if ! parted -s "$disk" mkpart primary btrfs 2049MiB 100% >>"$CONFIG_LOG" 2>&1; then
+  parted -s "/dev/$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to mark ESP partition" >&2; return 1; }
+  if ! parted -s "/dev/$disk" mkpart primary btrfs 2049MiB 100% >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create root partition" >&2
     return 1
   fi
-  partprobe "$disk" >>"$CONFIG_LOG" 2>&1 || true
+  partprobe "/dev/$disk" >>"$CONFIG_LOG" 2>&1 || true
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle >>"$CONFIG_LOG" 2>&1 || true
   fi
@@ -133,29 +133,29 @@ prepare_partition_layout() {
 
   prepare_disk_for_repartitioning "$disk"
 
-  if ! parted -s "$disk" rm "$partnum" >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" rm "$partnum" >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to delete partition $partition from $disk" >&2
     return 1
   fi
 
   log_debug "Creating new ESP partition on $disk"
-  if ! parted -s "$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create ESP partition on $disk" >&2
     return 1
   fi
 
-  if ! parted -s "$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to mark ESP partition" >&2
     return 1
   fi
 
   log_debug "Creating new root partition on $disk"
-  if ! parted -s "$disk" mkpart primary btrfs 2049MiB 100% >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" mkpart primary btrfs 2049MiB 100% >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create root partition on $disk" >&2
     return 1
   fi
 
-  partprobe "$disk" >>"$CONFIG_LOG" 2>&1 || true
+  partprobe "/dev/$disk" >>"$CONFIG_LOG" 2>&1 || true
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle >>"$CONFIG_LOG" 2>&1 || true
   fi
@@ -294,7 +294,7 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
         if [[ -z "$new_root_partition" ]]; then
           # Fallback: extract disk and assume root is the last partition
           disk=$(lsblk -no PKNAME "$device" 2>/dev/null | head -n1)
-          new_root_partition=$(lsblk -npo PATH "$disk" 2>/dev/null | tail -1)
+          new_root_partition=$(lsblk -npo PATH "/dev/$disk" 2>/dev/null | tail -1)
         fi
         log_debug "Returning new root partition: $new_root_partition"
         printf "%s\n" "$new_root_partition"
