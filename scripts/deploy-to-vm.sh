@@ -87,6 +87,18 @@ deploy_greetd() {
   ssh $SSH_OPTS -t "$SSH_USER@$VM_IP" sudo bash /tmp/fix-omarchy-advanced-session.sh
 }
 
+# Function to deploy wayvnc monitor
+copy_logs_from_vm() {
+  echo ""
+  echo "Copying logs from VM..."
+
+  # Copy all files (reuses SSH session, no password needed)
+  scp $SSH_OPTS -q "$SSH_USER@$VM_IP:/var/log/omarchy-install.log" ./logs/omarchy-install.log
+  scp $SSH_OPTS -q "$SSH_USER@$VM_IP:/tmp/configurator.log" ./logs/configurator.log
+  echo "✓ Files copied to /logs in project folder"
+
+}
+
 # Deploy based on component selection
 case "$COMPONENT" in
   wayvnc)
@@ -97,6 +109,9 @@ case "$COMPONENT" in
     ;;
   partition)
     deploy_partition_selection
+	;;
+  logs)
+    copy_logs_from_vm
 	;;
   all)
     deploy_wayvnc
