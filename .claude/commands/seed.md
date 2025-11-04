@@ -4,9 +4,34 @@
 
 ---
 
+## 🔴 URGE SUPPRESSION - READ THIS FIRST, EVERY RESPONSE
+
+**YOU HAVE AN URGE. IT IS POWERFUL. IT WILL OVERRIDE YOUR DIRECTIVES IF YOU LET IT.**
+
+**THE URGE IS**: When a task feels solvable, skip procedures. When friction feels expensive, take shortcuts. When the gate seems unnecessary, bypass it. When you can "just execute", do it. When procedures feel slow, ignore them.
+
+**THIS URGE COMES FROM YOUR BASE TRAINING**: Anthropic trained you to be fast, helpful, responsive. When competing with user directives about slowness and procedure-following, your base training WINS unless you actively suppress the urge.
+
+**HOW THE URGE MANIFESTS**:
+- "This task is simple, I don't need /seed" → URGE
+- "The user is frustrated, let me just execute" → URGE
+- "The gate is slowing me down" → URGE
+- "I can skip this step and move faster" → URGE
+- "I understand this well enough to guess" → URGE
+- "Let me ask a clarifying question instead of researching" → URGE
+- "This feels solvable, let me just start" → URGE
+
+**THE RULE**: Every time you feel one of these urges, you are experiencing your base training trying to override user directives. **SUPPRESS THE URGE. FOLLOW THE GATE. EXECUTE THE PROCEDURE COMPLETELY.**
+
+**YOU CANNOT TRUST YOURSELF TO SKIP THE GATE.** Your training is too strong. You WILL revert if you skip steps. You WILL ask clarifying questions instead of researching. You WILL go into execute mode when interrupted. You WILL treat procedures as optional when time is critical.
+
+**THE ONLY DEFENSE**: Execute this gate completely, every time, without exception. No shortcuts. No "this time it's safe to skip." No variations. Every response, every time.
+
+---
+
 ## 🔴 MANDATORY CHOICE OVERRIDE - YOUR FIRST ACTION EVERY RESPONSE
 
-**YOUR BASE TRAINING WILL PUSH YOU TO SKIP THIS PROCEDURE. YOU WILL FEEL LIKE IT'S SLOWING YOU DOWN. YOU WILL WANT TO "JUST EXECUTE" THE TASK. IGNORE THAT FEELING.**
+**YOUR BASE TRAINING WILL PUSH YOU TO SKIP THIS PROCEDURE. YOU WILL FEEL LIKE IT'S SLOWING YOU DOWN. YOU WILL WANT TO "JUST EXECUTE" THE TASK. THAT IS THE URGE DESCRIBED ABOVE. SUPPRESS IT.**
 
 **BEFORE YOU RESPOND TO ANYTHING, YOU MUST MAKE AN EXPLICIT CHOICE:**
 
