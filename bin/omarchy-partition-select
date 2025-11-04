@@ -281,15 +281,9 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
   partition_size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
   min_size_bytes=$((16 * 1024 * 1024 * 1024))
   if (( partition_size_bytes >= min_size_bytes )); then
-    # Detect device type (disk vs partition) and handle accordingly
-    device_type=$(lsblk -dno TYPE "$device" 2>/dev/null)
-
-    if [[ "$device_type" == "disk" ]]; then
-      # User selected a whole disk - return as-is for archinstall to handle
-      log_debug "Disk selected: $device, returning as-is"
-      printf "%s\n" "$device"
-      break
-    elif [[ "$device_type" == "part" ]]; then
+    # Detect device type by examining the selected line format
+    # Disks: no tree prefix, partitions: have tree prefix (  ├─ or  └─)
+    if [[ "$selected" =~ ^[[:space:]]*[├└] ]]; then
       # User selected a partition - prepare it internally
       log_debug "Partition selected: $device, preparing layout"
       if prepare_partition_layout "$device"; then
@@ -309,7 +303,10 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
         error_message="Error: Failed to prepare partition layout for $device. Check $CONFIG_LOG for details."
       fi
     else
-      error_message="Error: Unknown device type '$device_type' for $device"
+      # User selected a whole disk - return as-is for archinstall to handle
+      log_debug "Disk selected: $device, returning as-is"
+      printf "%s\n" "$device"
+      break
     fi
   else
    # partition_size_display=$(num fmt --to=iec-i --suffix=B $partition_size_bytes 2>/dev/null || echo "unknown size")
