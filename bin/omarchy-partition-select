@@ -143,10 +143,6 @@ prepare_partition_layout() {
   [[ -z "$partnum" ]] && { echo "Error: Failed to extract partition number from $partition" >&2; return 1; }
 
   log_debug "Replacing selected partition with ESP + root partitions"
-  {
-    echo "--- lsblk tree BEFORE partition operations ---"
-    lsblk -lnpo NAME,TYPE,MOUNTPOINTS "/dev/$disk"
-  } >>"$CONFIG_LOG" 2>&1
 
   log_debug "Deleting partition $partnum from disk $disk"
 
@@ -159,11 +155,6 @@ prepare_partition_layout() {
   log_debug "Partition $partnum deleted successfully"
 
   refresh_partition_table "$disk"
-
-  {
-    echo "--- lsblk tree AFTER partition deletion and refresh ---"
-    lsblk -lnpo NAME,TYPE,MOUNTPOINTS "/dev/$disk"
-  } >>"$CONFIG_LOG" 2>&1
 
   log_debug "Creating new ESP partition on $disk"
   if ! parted -s "/dev/$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
