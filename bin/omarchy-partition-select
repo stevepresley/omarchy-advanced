@@ -281,8 +281,36 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
   partition_size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
   min_size_bytes=$((16 * 1024 * 1024 * 1024))
   if (( partition_size_bytes >= min_size_bytes )); then
-    printf "%s\n" "$device"
-    break
+    # Detect device type (disk vs partition) and handle accordingly
+    device_type=$(lsblk -dno TYPE "$device" 2>/dev/null)
+
+    if [[ "$device_type" == "disk" ]]; then
+      # User selected a whole disk - return as-is for archinstall to handle
+      log_debug "Disk selected: $device, returning as-is"
+      printf "%s\n" "$device"
+      break
+    elif [[ "$device_type" == "part" ]]; then
+      # User selected a partition - prepare it internally
+      log_debug "Partition selected: $device, preparing layout"
+      if prepare_partition_layout "$device"; then
+        log_debug "Partition layout prepared successfully"
+        # After prepare_partition_layout, find the newly created root partition
+        # It should be the last partition on the disk
+        new_root_partition=$(lsblk -no PATH "$device" 2>/dev/null | grep -oE '/dev/[a-z0-9]+' | tail -1)
+        if [[ -z "$new_root_partition" ]]; then
+          # Fallback: extract disk and assume root is the last partition
+          disk=$(lsblk -no PKNAME "$device" 2>/dev/null | head -n1)
+          new_root_partition=$(lsblk -npo PATH "$disk" 2>/dev/null | tail -1)
+        fi
+        log_debug "Returning new root partition: $new_root_partition"
+        printf "%s\n" "$new_root_partition"
+        break
+      else
+        error_message="Error: Failed to prepare partition layout for $device. Check $CONFIG_LOG for details."
+      fi
+    else
+      error_message="Error: Unknown device type '$device_type' for $device"
+    fi
   else
    # partition_size_display=$(num fmt --to=iec-i --suffix=B $partition_size_bytes 2>/dev/null || echo "unknown size")
    # gum style --bold --foreground 1 "Error: $device is $partition_size_display.
