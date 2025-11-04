@@ -95,6 +95,7 @@ copy_logs_from_vm() {
   # Copy all files (reuses SSH session, no password needed)
   scp $SSH_OPTS -q "$SSH_USER@$VM_IP:/var/log/omarchy-install.log" ./logs/omarchy-install.log
   scp $SSH_OPTS -q "$SSH_USER@$VM_IP:/tmp/configurator.log" ./logs/configurator.log
+  scp $SSH_OPTS -q "$SSH_USER@$VM_IP:/tmp/partition-select.log" ./logs/partition-select.log
   echo "✓ Files copied to /logs in project folder"
 
 }
