@@ -174,39 +174,43 @@ prepare_partition_layout() {
   done
 
   # Find the first free space region that is >= 2GB (2048MB)
-  # parted output format: "17.4kB  1049kB  1031kB  Free Space" or similar
+  # Use awk to parse parted output - handles variable whitespace naturally
   free_start=""
   free_end=""
-  free_size_num=0
 
-  while IFS=$'\t' read -r start end size fstype label flags; do
-    # Check if this line contains "Free Space"
-    if [[ "$fstype" == *"Free Space"* ]]; then
-      # Extract numeric value from size string (e.g., "1031kB" -> 1031, "48.3GB" -> 48300)
-      free_size_str="${size% *}"  # Remove unit (kB, MB, GB)
-      free_unit="${size##* }"      # Extract unit
-
-      # Convert to MB for comparison
-      if [[ "$free_unit" == "GB" ]]; then
-        free_size_num=$(echo "$free_size_str * 1024" | bc -l | awk '{printf "%.0f", $0}')
-      elif [[ "$free_unit" == "MB" ]]; then
-        free_size_num=$(echo "$free_size_str" | awk '{printf "%.0f", $0}')
-      else
-        # kB - convert to MB
-        free_size_num=$(echo "$free_size_str / 1024" | bc -l | awk '{printf "%.0f", $0}')
-      fi
-
-      log_debug "Found free space: $start to $end, size: $size (converted to ${free_size_num}MB)"
-
-      # If this free space is >= 2GB (2048MB), use it
-      if (( free_size_num >= 2048 )); then
-        free_start="$start"
-        free_end="$end"
-        log_debug "Selected free space: $free_start to $free_end (${free_size_num}MB available)"
-        break
-      fi
+  # Parse with awk: look for lines containing "Free Space" and extract start, end, size
+  while IFS=$'|' read -r free_start free_end free_size_str; do
+    if [[ -z "$free_start" ]]; then
+      continue
     fi
-  done < <(echo "$parted_output" | tail -n +3)  # Skip header lines
+
+    # Extract numeric value and unit from size string (e.g., "17.2GB" -> 17.2 GB)
+    free_size_str=$(echo "$free_size_str" | xargs)  # Trim whitespace
+    free_size_num=$(echo "$free_size_str" | grep -oE '^[0-9]+\.?[0-9]*')
+    free_unit=$(echo "$free_size_str" | grep -oE '[A-Z]+$')
+
+    # Convert to MB for comparison
+    case "$free_unit" in
+      GB)
+        free_size_num=$(echo "$free_size_num * 1024" | bc -l | awk '{printf "%.0f", $0}')
+        ;;
+      MB)
+        free_size_num=$(echo "$free_size_num" | awk '{printf "%.0f", $0}')
+        ;;
+      *)
+        # kB - convert to MB
+        free_size_num=$(echo "$free_size_num / 1024" | bc -l | awk '{printf "%.0f", $0}')
+        ;;
+    esac
+
+    log_debug "Found free space: $free_start to $free_end, size: $free_size_str (converted to ${free_size_num}MB)"
+
+    # If this free space is >= 2GB (2048MB), use it
+    if (( free_size_num >= 2048 )); then
+      log_debug "Selected free space: $free_start to $free_end (${free_size_num}MB available)"
+      break
+    fi
+  done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}' | tail -n +2)  # Skip first "Free Space" (the header line) if it exists
 
   # Validate that we found suitable free space
   if [[ -z "$free_start" ]] || [[ -z "$free_end" ]]; then
