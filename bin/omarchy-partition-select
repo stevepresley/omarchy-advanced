@@ -238,8 +238,41 @@ prepare_partition_layout() {
   fi
   refresh_partition_table "$disk"
 
+  # Determine root partition end boundary
+  # If there are partitions after the free space, use free_end; otherwise use 100% (disk end)
+  local root_end
+  local partitions_after_free_space
+
+  # Check if any partitions exist after the free space boundary
+  partitions_after_free_space=$(parted -s "/dev/$disk" print 2>/dev/null | awk -v free_end="$free_end" '
+    /^[[:space:]]*[0-9]+/ {
+      # Extract partition end (column 3)
+      partition_end=$3
+      # Use gsub to remove units from both values for numeric comparison
+      partition_end_num=partition_end
+      gsub(/[A-Za-z]+$/, "", partition_end_num)
+
+      free_end_num=free_end
+      gsub(/[A-Za-z]+$/, "", free_end_num)
+
+      # Convert to numbers for comparison
+      if (partition_end_num + 0 > free_end_num + 0) {
+        print "yes"
+        exit
+      }
+    }
+  ')
+
+  if [[ -n "$partitions_after_free_space" ]]; then
+    root_end="$free_end"
+    log_debug "Partitions exist after free space - using free_end ($free_end) as root partition boundary"
+  else
+    root_end="100%"
+    log_debug "No partitions after free space - using disk end (100%) as root partition boundary"
+  fi
+
   log_debug "Creating new root partition on $disk"
-  if ! parted -s "/dev/$disk" mkpart primary btrfs "$esp_end" 100% >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" mkpart primary btrfs "$esp_end" "$root_end" >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create root partition on $disk" >&2
     return 1
   fi
