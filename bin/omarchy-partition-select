@@ -25,8 +25,8 @@ prepare_disk_for_repartitioning() {
   local disk="$1"
   log_debug "Detaching existing mappings on $disk"
   {
-    echo "--- lsblk tree for $disk ---"
-    lsblk -lnpo NAME,TYPE,MOUNTPOINTS "$disk"
+    echo "--- lsblk tree for /dev/$disk ---"
+    lsblk -lnpo NAME,TYPE,MOUNTPOINTS "/dev/$disk"
     echo "--- /proc/swaps ---"
     cat /proc/swaps
   } >>"$CONFIG_LOG" 2>&1
@@ -79,7 +79,7 @@ prepare_disk_for_repartitioning() {
         log_debug "No cleanup actions for child type $child_type"
         ;;
     esac
-  done < <(lsblk -lnpo NAME,TYPE "$disk" | tail -n +2)
+  done < <(lsblk -lnpo NAME,TYPE "/dev/$disk" | tail -n +2)
 
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle >>"$CONFIG_LOG" 2>&1 || true
