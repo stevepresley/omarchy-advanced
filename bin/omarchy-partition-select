@@ -157,17 +157,65 @@ prepare_partition_layout() {
   refresh_partition_table "$disk"
 
   # Extract free space boundaries dynamically using parted print free
-  local free_space_line
+  local parted_output
   local free_start
+  local free_end
+  local free_size_str
+  local free_size_num
   local free_num
   local esp_end_num
   local esp_end
 
-  free_space_line=$(parted /dev/$disk print free 2>/dev/null | grep -A 1 "Free Space" | head -1)
-  free_start=$(echo "$free_space_line" | awk '{print $1}')
-  log_debug "Detected free space start: $free_start"
+  # Log the parted output for debugging
+  parted_output=$(parted /dev/$disk print free 2>/dev/null)
+  log_debug "parted print free output:"
+  echo "$parted_output" | while read line; do
+    log_debug "$line"
+  done
 
-  # Extract numeric part and add 2048 MiB for ESP end (2GB = 2048 MiB)
+  # Find the first free space region that is >= 2GB (2048MB)
+  # parted output format: "17.4kB  1049kB  1031kB  Free Space" or similar
+  free_start=""
+  free_end=""
+  free_size_num=0
+
+  while IFS=$'\t' read -r start end size fstype label flags; do
+    # Check if this line contains "Free Space"
+    if [[ "$fstype" == *"Free Space"* ]]; then
+      # Extract numeric value from size string (e.g., "1031kB" -> 1031, "48.3GB" -> 48300)
+      free_size_str="${size% *}"  # Remove unit (kB, MB, GB)
+      free_unit="${size##* }"      # Extract unit
+
+      # Convert to MB for comparison
+      if [[ "$free_unit" == "GB" ]]; then
+        free_size_num=$(echo "$free_size_str * 1024" | bc -l | awk '{printf "%.0f", $0}')
+      elif [[ "$free_unit" == "MB" ]]; then
+        free_size_num=$(echo "$free_size_str" | awk '{printf "%.0f", $0}')
+      else
+        # kB - convert to MB
+        free_size_num=$(echo "$free_size_str / 1024" | bc -l | awk '{printf "%.0f", $0}')
+      fi
+
+      log_debug "Found free space: $start to $end, size: $size (converted to ${free_size_num}MB)"
+
+      # If this free space is >= 2GB (2048MB), use it
+      if (( free_size_num >= 2048 )); then
+        free_start="$start"
+        free_end="$end"
+        log_debug "Selected free space: $free_start to $free_end (${free_size_num}MB available)"
+        break
+      fi
+    fi
+  done < <(echo "$parted_output" | tail -n +3)  # Skip header lines
+
+  # Validate that we found suitable free space
+  if [[ -z "$free_start" ]] || [[ -z "$free_end" ]]; then
+    echo "Error: No free space region with at least 2GB available found on $disk" >&2
+    log_debug "Failed to find 2GB+ free space region on $disk"
+    return 1
+  fi
+
+  # Extract numeric part of start address and add 2048 MiB for ESP end (2GB = 2048 MiB)
   free_num=$(echo "$free_start" | sed 's/[^0-9]//g')
   esp_end_num=$((free_num + 2048))
   esp_end="${esp_end_num}MB"
