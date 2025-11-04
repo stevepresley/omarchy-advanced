@@ -156,8 +156,25 @@ prepare_partition_layout() {
 
   refresh_partition_table "$disk"
 
+  # Extract free space boundaries dynamically using parted print free
+  local free_space_line
+  local free_start
+  local free_num
+  local esp_end_num
+  local esp_end
+
+  free_space_line=$(parted /dev/$disk print free 2>/dev/null | grep -A 1 "Free Space" | head -1)
+  free_start=$(echo "$free_space_line" | awk '{print $1}')
+  log_debug "Detected free space start: $free_start"
+
+  # Extract numeric part and add 2048 MiB for ESP end (2GB = 2048 MiB)
+  free_num=$(echo "$free_start" | sed 's/[^0-9]//g')
+  esp_end_num=$((free_num + 2048))
+  esp_end="${esp_end_num}MB"
+  log_debug "Calculated ESP boundaries: $free_start to $esp_end"
+
   log_debug "Creating new ESP partition on $disk"
-  if ! parted -s "/dev/$disk" mkpart primary fat32 1MiB 2049MiB >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" mkpart primary fat32 "$free_start" "$esp_end" >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create ESP partition on $disk" >&2
     return 1
   fi
@@ -170,7 +187,7 @@ prepare_partition_layout() {
   refresh_partition_table "$disk"
 
   log_debug "Creating new root partition on $disk"
-  if ! parted -s "/dev/$disk" mkpart primary btrfs 2049MiB 100% >>"$CONFIG_LOG" 2>&1; then
+  if ! parted -s "/dev/$disk" mkpart primary btrfs "$esp_end" 100% >>"$CONFIG_LOG" 2>&1; then
     echo "Error: Failed to create root partition on $disk" >&2
     return 1
   fi
