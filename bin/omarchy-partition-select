@@ -428,72 +428,85 @@ if ((${#devices[@]} == 0)); then
   exit 1
 fi
 
-# Gather metadata for the requested devices using lsblk JSON for easier traversal
-lsblk_columns="PATH,NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT,LABEL,MODEL,PARTLABEL,PKNAME"
-lsblk_json=$(lsblk -J -o "$lsblk_columns" "${devices[@]}")
+# Function to refresh and rebuild the device options menu
+rebuild_options_menu() {
+  # Refresh partition tables on all detected devices before rebuilding the menu
+  for device in "${devices[@]}"; do
+    disk_name="${device##*/}"
+    refresh_partition_table "$disk_name"
+  done
 
-# Prepare formatted lines for gum choose
-mapfile -t options < <(
-  jq -r '
-    def fmt_size($val):
-      if $val == null or $val == "" then "" else " (" + $val + ")" end;
-    def fmt_model($val):
-      if $val == null or $val == "" then "" else " - " + $val end;
-    def fmt_fs($part):
-      if $part.fstype != null and $part.fstype != "" then
-        ", " + $part.fstype
-        + (if $part.fstype == "crypto_LUKS" then " \u001b[31m(ENCRYPTED)\u001b[0m" else "" end)
-      else "" end;
-    def fmt_mount($part):
-      if $part.mountpoint != null and $part.mountpoint != "" then ", mounted at " + $part.mountpoint else "" end;
-    def fmt_label($part):
-      if $part.partlabel != null and $part.partlabel != "" then " [" + $part.partlabel + "]"
-      elif $part.label != null and $part.label != "" then " [" + $part.label + "]"
-      else "" end;
-    def fmt_size_warning($val):
-      if $val == null or $val == "" then ""
-      else
-        # Parse size string to bytes
-        if ($val | test("[0-9]+G")) then
-          ($val | scan("[0-9]+") | tonumber * 1024 * 1024 * 1024) as $bytes |
-          if $bytes < (16 * 1024 * 1024 * 1024) then " \u001b[31m[TOO SMALL - 16GB minimum required]\u001b[0m" else "" end
-        else ""
-        end
-       end;
+  # Gather metadata for the requested devices using lsblk JSON for easier traversal
+  lsblk_columns="PATH,NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT,LABEL,MODEL,PARTLABEL,PKNAME"
+  lsblk_json=$(lsblk -J -o "$lsblk_columns" "${devices[@]}")
 
-    .blockdevices[]
-    | select(.type == "disk")
-    | . as $disk
-    | ($disk.path + fmt_size($disk.size) + fmt_model($disk.model))
-    , (($disk.children // [])
-        | to_entries[]
-        | . as $entry
-        | $entry.value as $part
-        | ($disk.path) as $disk_path
-        | ($entry.key == ( ( ($disk.children // []) | length) - 1 )) as $is_last
-        | (if $is_last then "  └─ " else "  ├─ " end)
-          + ($part.path
-             + fmt_size($part.size)
-             + fmt_fs($part)
-             + fmt_mount($part)
+  # Prepare formatted lines for gum choose
+  mapfile -t options < <(
+    jq -r '
+      def fmt_size($val):
+        if $val == null or $val == "" then "" else " (" + $val + ")" end;
+      def fmt_model($val):
+        if $val == null or $val == "" then "" else " - " + $val end;
+      def fmt_fs($part):
+        if $part.fstype != null and $part.fstype != "" then
+          ", " + $part.fstype
+          + (if $part.fstype == "crypto_LUKS" then " \u001b[31m(ENCRYPTED)\u001b[0m" else "" end)
+        else "" end;
+      def fmt_mount($part):
+        if $part.mountpoint != null and $part.mountpoint != "" then ", mounted at " + $part.mountpoint else "" end;
+      def fmt_label($part):
+        if $part.partlabel != null and $part.partlabel != "" then " [" + $part.partlabel + "]"
+        elif $part.label != null and $part.label != "" then " [" + $part.label + "]"
+        else "" end;
+      def fmt_size_warning($val):
+        if $val == null or $val == "" then ""
+        else
+          # Parse size string to bytes
+          if ($val | test("[0-9]+G")) then
+            ($val | scan("[0-9]+") | tonumber * 1024 * 1024 * 1024) as $bytes |
+            if $bytes < (16 * 1024 * 1024 * 1024) then " \u001b[31m[TOO SMALL - 16GB minimum required]\u001b[0m" else "" end
+          else ""
+          end
+         end;
+
+      .blockdevices[]
+      | select(.type == "disk")
+      | . as $disk
+      | ($disk.path + fmt_size($disk.size) + fmt_model($disk.model))
+      , (($disk.children // [])
+          | to_entries[]
+          | . as $entry
+          | $entry.value as $part
+          | ($disk.path) as $disk_path
+          | ($entry.key == ( ( ($disk.children // []) | length) - 1 )) as $is_last
+          | (if $is_last then "  └─ " else "  ├─ " end)
+            + ($part.path
+               + fmt_size($part.size)
+               + fmt_fs($part)
+               + fmt_mount($part)
              + fmt_label($part)
              + fmt_size_warning($part.size)))
   ' <<<"$lsblk_json"
-)
+  )
 
-filtered_options=()
-min_size_bytes=$((14 * 1024 * 1024 * 1024))
-for line in "${options[@]}"; do
-  device=$(printf "%s\n" "$line" | grep -oE '/dev/[a-z0-9]+' | tail -1)
-  if [[ "$line" =~ [└├] && -n "$device" ]]; then
-    size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
-    if (( size_bytes < min_size_bytes )); then
-      continue
+  # Filter options to exclude partitions smaller than the minimum required size
+  local filtered_options=()
+  local min_size_bytes=$((14 * 1024 * 1024 * 1024))
+  for line in "${options[@]}"; do
+    device=$(printf "%s\n" "$line" | grep -oE '/dev/[a-z0-9]+' | tail -1)
+    if [[ "$line" =~ [└├] && -n "$device" ]]; then
+      size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
+      if (( size_bytes < min_size_bytes )); then
+        continue
+      fi
     fi
-  fi
-  filtered_options+=("$line")
-done
-options=("${filtered_options[@]}")
+    filtered_options+=("$line")
+  done
+  options=("${filtered_options[@]}")
+}
+
+# Build the initial options menu
+rebuild_options_menu
 
 if ((${#options[@]} == 0)); then
   echo "No disks or partitions found to display." >&2
@@ -501,6 +514,10 @@ if ((${#options[@]} == 0)); then
 fi
 
 while true; do
+
+  # Rebuild the options menu to refresh block device list before each display
+  # This prevents stale lsblk data from showing duplicate entries
+  rebuild_options_menu
 
   header_text="Select install target (disk or partition)"
   selected="$("gum" "choose" "--header" "$error_message
