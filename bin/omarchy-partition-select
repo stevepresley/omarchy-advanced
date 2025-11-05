@@ -339,6 +339,10 @@ prepare_disk_layout() {
   fi
 
   log_debug "All partitions formatted, subvolumes created, and mounted successfully"
+
+  # Final refresh to ensure all device nodes are properly settled before returning
+  # This ensures the configurator can access the mounted partitions without delay
+  refresh_partition_table "$disk"
 }
 
 prepare_partition_layout() {
