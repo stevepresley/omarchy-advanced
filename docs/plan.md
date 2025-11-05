@@ -24,6 +24,9 @@
 - That file contains the current critical issue and all implementation requirements
 - Do NOT work on anything else in plan.md until partition-selection is resolved or user explicitly changes priority
 
+
+STOP READING HERE UNTIL THIS FEATURE WORK IS COMPLETE, or the user tells you to WORK ON SOMETHING ELSE
+
 ---
 
 ## CURRENT STATE - SESSION 2025-11-05 (ONGOING)
