@@ -21,11 +21,10 @@ log_debug() {
 
 log_parted_output() {
   local parted_output="$1"
-  log_debug "=== parted print free full output ==="
+  log_debug "Captured parted output from: parted /dev/\$disk print free"
   echo "$parted_output" | while read line; do
     log_debug "PARTED: $line"
   done
-  log_debug "=== end parted output ==="
 }
 
 # === PARTITION PREP FUNCTIONS (copied from configurator) ===
