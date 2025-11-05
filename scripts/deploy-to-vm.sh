@@ -3,7 +3,7 @@
 # Usage: ./scripts/deploy-to-vm.sh <vm-ip-address> [ssh-user] [component]
 # Example: ./scripts/deploy-to-vm.sh 192.168.50.73 steve
 # Example: ./scripts/deploy-to-vm.sh 192.168.50.73 steve greetd
-# Components: wayvnc (default), greetd, all
+# Components: wayvnc (default), greetd, all, logs
 
 set -e
 
@@ -22,6 +22,9 @@ if [[ -z "$VM_IP" ]]; then
   echo "  greetd           - Reconfigure greetd display manager"
   echo "  partition        - Deploy updated partition-selection assets"
   echo "  all              - Deploy both wayvnc and greetd"
+  echo " "
+  echo " -- independent PULL ACTIONS -- "
+  echo "  logs             - IMPORT logs from VM to current project /logs folder"
   exit 1
 fi
 
@@ -120,7 +123,7 @@ case "$COMPONENT" in
     ;;
   *)
     echo "ERROR: Unknown component '$COMPONENT'"
-    echo "Valid options: wayvnc, greetd, all"
+    echo "Valid options: wayvnc, greetd, all, logs"
     exit 1
     ;;
 esac
