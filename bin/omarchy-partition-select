@@ -506,19 +506,22 @@ rebuild_options_menu() {
   )
 
   # Filter options to exclude partitions smaller than the minimum required size
-  local filtered_options=()
-  local min_size_bytes=$((14 * 1024 * 1024 * 1024))
-  for line in "${options[@]}"; do
-    device=$(printf "%s\n" "$line" | grep -oE '/dev/[a-z0-9]+' | tail -1)
-    if [[ "$line" =~ [└├] && -n "$device" ]]; then
-      size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
-      if (( size_bytes < min_size_bytes )); then
-        continue
-      fi
-    fi
-    filtered_options+=("$line")
-  done
-  options=("${filtered_options[@]}")
+  # DISABLED: This filtering was removing small partitions from the menu entirely
+  # Instead, we show all partitions with warnings. The filtering logic was preventing
+  # users from seeing partitions < 14GB even though they had warning labels.
+  # local filtered_options=()
+  # local min_size_bytes=$((14 * 1024 * 1024 * 1024))
+  # for line in "${options[@]}"; do
+  #   device=$(printf "%s\n" "$line" | grep -oE '/dev/[a-z0-9]+' | tail -1)
+  #   if [[ "$line" =~ [└├] && -n "$device" ]]; then
+  #     size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
+  #     if (( size_bytes < min_size_bytes )); then
+  #       continue
+  #     fi
+  #   fi
+  #   filtered_options+=("$line")
+  # done
+  # options=("${filtered_options[@]}")
 }
 
 # Build the initial options menu
