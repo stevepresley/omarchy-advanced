@@ -1,14 +1,42 @@
-## CURRENT STATE - SESSION 2025-11-04 (ONGOING)
+## 🔴 CRITICAL: CURRENT WORK IN PROGRESS - READ THIS FIRST (2025-11-05)
 
-### CRITICAL ISSUE: partition-selection is not formatting or selecting correctly
+**YOU MUST READ THIS IMMEDIATELY AND FOLLOW IT EXACTLY**
 
-CURRENT DOCUMENTATION FOR THIS FEATURE IS AT : @docs/feature/partition-selection/partition-selection-formatting-details.md
+### PRIMARY TASK: Partition Selection Architecture Implementation
+
+**LOCATION OF ALL CURRENT WORK**: `docs/feature/partition-selection/partition-selection-formatting-details.md`
+
+**WHAT THIS MEANS**:
+1. **IGNORE EVERYTHING ELSE IN THIS PLAN.MD UNTIL THIS WORK IS DONE**
+2. **READ partition-selection-formatting-details.md COMPLETELY** - it contains the ENTIRE specification for current work
+3. **DO NOT CHERRY-PICK** - read both the architecture section AND the implementation requirements
+4. **DO NOT ASK PERMISSION** - when you understand the work, START DOING IT
+5. **FOCUS EXCLUSIVELY** on partition-selection work until user says task is complete or tells you to work on something else
+
+**WHY THIS IS AT THE TOP**:
+- Previous sessions wasted entire context windows asking permission, cherry-picking sections, and not reading the full document
+- The user had to repeatedly explain the same directive multiple times
+- This directive exists to PREVENT that waste
+
+### For Every Future Agent:
+- This is not a suggestion - it is a MANDATE
+- If you're starting work on this project, the FIRST thing you do is read the partition-selection-formatting-details.md file
+- That file contains the current critical issue and all implementation requirements
+- Do NOT work on anything else in plan.md until partition-selection is resolved or user explicitly changes priority
+
+---
+
+## CURRENT STATE - SESSION 2025-11-05 (ONGOING)
+
+### CRITICAL ISSUE: partition-selection formatting and architecture implementation
+
+CURRENT DOCUMENTATION FOR THIS FEATURE IS AT : `docs/feature/partition-selection/partition-selection-formatting-details.md`
 
 **For Next Agent**:
 - DO NOT make assumptions about what the problem is
-- READ the actual conversation history to see what user reported
-- Understand that gum IS working (user confirmed menu displays fine)
-- Focus on ERROR MESSAGE DISPLAY TIMING, not on gum choose functionality
+- READ the partition-selection-formatting-details.md document COMPLETELY before starting work
+- This is the ONLY priority until user says otherwise
+- Focus on implementing the dual-partition return format and configurator simplification
 - Test any changes to understand the actual behavior before committing
 - Use `git revert` for specific commits, never `git reset --hard` unless explicitly asked
 
