@@ -456,6 +456,9 @@ rebuild_options_menu() {
   lsblk_columns="PATH,NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT,LABEL,MODEL,PARTLABEL,PKNAME"
   lsblk_json=$(lsblk -J -o "$lsblk_columns" "${devices[@]}")
 
+  # Clear options array before refilling to prevent duplicates on subsequent rebuild calls
+  options=()
+
   # Prepare formatted lines for gum choose
   mapfile -t options < <(
     jq -r '
@@ -478,8 +481,8 @@ rebuild_options_menu() {
         if $val == null or $val == "" then ""
         else
           # Parse size string to bytes
-          if ($val | test("[0-9]+G")) then
-            ($val | scan("[0-9]+") | tonumber * 1024 * 1024 * 1024) as $bytes |
+          if ($val | test("[0-9]+\.?[0-9]*G")) then
+            ($val | scan("[0-9]+\.?[0-9]*") | tonumber * 1024 * 1024 * 1024) as $bytes |
             if $bytes < (16 * 1024 * 1024 * 1024) then " \u001b[31m[TOO SMALL - 16GB minimum required]\u001b[0m" else "" end
           else ""
           end
