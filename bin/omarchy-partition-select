@@ -119,11 +119,12 @@ find_partition_boundaries() {
     root_end="100%"
   else
     # Extract free space boundaries dynamically using parted print free
-    log_debug "Extracting free space boundaries from $disk"
+    log_debug "Extracting free space boundaries from /dev/$disk"
+    log_debug "Running command: parted /dev/$disk print free"
     parted_output=$(parted /dev/$disk print free 2>/dev/null)
-    log_debug "parted print free output:"
+    log_debug "parted /dev/$disk print free output:"
     echo "$parted_output" | while read line; do
-      log_debug "$line"
+      log_debug "  $line"
     done
 
     # Find the first free space region that is >= 2GB (2048MB)
