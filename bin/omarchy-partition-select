@@ -20,12 +20,16 @@ log_debug() {
 }
 
 log_parted_output() {
-  local parted_output="$1"
-  local disk="$2"
-  log_debug "Captured parted output from: parted /dev/$disk print free"
+  local input="$1"
+  # First line is disk name, rest is parted output
+  local disk=$(echo "$input" | head -n1)
+  local parted_output=$(echo "$input" | tail -n+2)
+
+  log_debug "=== parted print free output for /dev/$disk ==="
   echo "$parted_output" | while read line; do
     log_debug "PARTED: $line"
   done
+  log_debug "=== end parted output ==="
 }
 
 # === PARTITION PREP FUNCTIONS (copied from configurator) ===
@@ -131,7 +135,8 @@ find_partition_boundaries() {
     log_debug "Extracting free space boundaries from /dev/$disk"
     log_debug "Running command: parted /dev/$disk print free"
     parted_output=$(parted /dev/$disk print free 2>/dev/null)
-    log_parted_output "$parted_output" "$disk"
+    log_parted_output "$disk
+$parted_output"
 
     # Find the first free space region that is >= 2GB (2048MB)
     free_start=""
