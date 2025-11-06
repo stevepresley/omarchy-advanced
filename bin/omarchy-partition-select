@@ -496,9 +496,9 @@ rebuild_options_menu() {
   lsblk_columns="PATH,NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT,LABEL,MODEL,PARTLABEL,PKNAME"
   lsblk_json=$(lsblk -J -o "$lsblk_columns" "${devices[@]}")
 
-  # === EXTRACT FREE SPACE REGIONS AND BUILD MERGED JSON ===
-  # Create associative array for free space regions organized by disk
-  declare -A free_space_by_disk
+  # === EXTRACT FREE SPACE REGIONS AS JSON ===
+  # Build JSON object with free space regions per disk for passing to jq
+  local free_space_json="{}"
 
   for disk in "${devices[@]}"; do
     disk_name="${disk##*/}"
@@ -520,15 +520,15 @@ rebuild_options_menu() {
       fi
 
       free_size_str=$(echo "$free_size_str" | xargs)
+      log_debug "Found free space on $disk_path: $free_start to $free_end ($free_size_str)"
 
       # Append free space entry to jq array
       free_regions=$(jq -n --arg start "$free_start" --arg end "$free_end" --arg size "$free_size_str" \
         "$free_regions + [{\"start\": \$start, \"end\": \$end, \"size\": \$size, \"type\": \"freespace\"}]")
-
-      log_debug "Found free space on $disk_path: $free_start to $end ($free_size_str)"
     done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}')
 
-    free_space_by_disk["$disk_name"]="$free_regions"
+    # Add free regions array to JSON object keyed by disk name
+    free_space_json=$(jq -n --arg disk "$disk_name" --argjson regions "$free_regions" "$free_space_json + {(\$disk): \$regions}")
   done
 
   # Clear options array before refilling to prevent duplicates on subsequent rebuild calls
