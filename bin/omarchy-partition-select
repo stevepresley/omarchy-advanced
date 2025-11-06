@@ -635,14 +635,54 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
   if [[ $? -ne 0 ]]; then
     exit 1
   fi
-  device=$(printf "%s\n" "$selected" | grep -oE '/dev/[a-z0-9]+' | tail -1)
-  partition_size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
-  min_size_bytes=$((16 * 1024 * 1024 * 1024))
-  if (( partition_size_bytes >= min_size_bytes )); then
-    # Detect device type by examining the selected line format
-    # Disks: no tree prefix, partitions: have tree prefix (  ├─ or  └─)
-    if [[ "$selected" =~ ^[[:space:]]*[├└] ]]; then
-      # User selected a partition - prepare it internally
+  # Check if user selected free space region
+  if [[ "$selected" =~ \(free\ space\) ]]; then
+    # User selected free space region - extract boundaries and disk from the encoded string
+    log_debug "Free space region selected: $selected"
+
+    # Extract disk path, start, and end from the encoded string
+    # Format: "  └─ (free space) (SIZE) [START:XXX|END:YYY|DISK:/dev/sdX]"
+    disk_path=$(echo "$selected" | grep -oP 'DISK:\K[^]]+')
+    free_start=$(echo "$selected" | grep -oP 'START:\K[^|]+')
+    free_end=$(echo "$selected" | grep -oP 'END:\K[^]]+')
+
+    if [[ -z "$disk_path" ]] || [[ -z "$free_start" ]] || [[ -z "$free_end" ]]; then
+      error_message="Error: Failed to parse free space region information"
+      continue
+    fi
+
+    disk_name="${disk_path##*/}"
+    log_debug "Free space parameters: disk=$disk_name, free_start=$free_start, free_end=$free_end"
+
+    if prepare_free_space_layout "$disk_name" "$free_start" "$free_end"; then
+      log_debug "Free space layout prepared successfully"
+      # After prepare_free_space_layout, find the newly created ESP and root partitions
+      # They should be the last two partitions on the disk
+      mapfile -t partitions < <(lsblk -npo PATH "$disk_path" 2>/dev/null | grep -v '^'"$disk_path"'$')
+      if (( ${#partitions[@]} < 2 )); then
+        error_message="Error: Failed to find newly created partitions in free space on $disk_path"
+        continue
+      fi
+
+      new_boot_partition="${partitions[-2]}"   # Second to last partition
+      new_root_partition="${partitions[-1]}"   # Last partition
+
+      log_debug "Returning new boot and root partitions from free space: $new_boot_partition|$new_root_partition"
+      printf "%s|%s\n" "$new_boot_partition" "$new_root_partition"
+      break
+    else
+      error_message="Error: Failed to prepare free space layout. Check $CONFIG_LOG for details."
+    fi
+  else
+    # User selected disk or partition
+    device=$(printf "%s\n" "$selected" | grep -oE '/dev/[a-z0-9]+' | tail -1)
+    partition_size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
+    min_size_bytes=$((16 * 1024 * 1024 * 1024))
+    if (( partition_size_bytes >= min_size_bytes )); then
+      # Detect device type by examining the selected line format
+      # Disks: no tree prefix, partitions: have tree prefix (  ├─ or  └─)
+      if [[ "$selected" =~ ^[[:space:]]*[├└] ]]; then
+        # User selected a partition - prepare it internally
       log_debug "Partition selected: $device, preparing layout"
       if prepare_partition_layout "$device"; then
         log_debug "Partition layout prepared successfully"
