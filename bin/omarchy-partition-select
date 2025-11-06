@@ -561,16 +561,26 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
       log_debug "Partition selected: $device, preparing layout"
       if prepare_partition_layout "$device"; then
         log_debug "Partition layout prepared successfully"
-        # After prepare_partition_layout, find the newly created root partition
-        # It should be the last partition on the disk
-        new_root_partition=$(lsblk -no PATH "$device" 2>/dev/null | grep -oE '/dev/[a-z0-9]+' | tail -1)
-        if [[ -z "$new_root_partition" ]]; then
-          # Fallback: extract disk and assume root is the last partition
-          disk=$(lsblk -no PKNAME "$device" 2>/dev/null | head -n1)
-          new_root_partition=$(lsblk -npo PATH "/dev/$disk" 2>/dev/null | tail -1)
+        # After prepare_partition_layout, find the newly created ESP and root partitions
+        # They should be the last two partitions on the disk
+        disk=$(lsblk -no PKNAME "$device" 2>/dev/null | head -n1)
+        if [[ -z "$disk" ]]; then
+          error_message="Error: Failed to determine disk for partition $device"
+          continue
         fi
-        log_debug "Returning new root partition: $new_root_partition"
-        printf "%s\n" "$new_root_partition"
+
+        # Get all partitions and extract the last two (ESP and root)
+        mapfile -t partitions < <(lsblk -npo PATH "/dev/$disk" 2>/dev/null | grep -v '^/dev/'"$disk"'$')
+        if (( ${#partitions[@]} < 2 )); then
+          error_message="Error: Failed to find newly created partitions on $disk"
+          continue
+        fi
+
+        new_boot_partition="${partitions[-2]}"   # Second to last partition
+        new_root_partition="${partitions[-1]}"   # Last partition
+
+        log_debug "Returning new boot and root partitions: $new_boot_partition|$new_root_partition"
+        printf "%s|%s\n" "$new_boot_partition" "$new_root_partition"
         break
       else
         error_message="Error: Failed to prepare partition layout for $device. Check $CONFIG_LOG for details."
