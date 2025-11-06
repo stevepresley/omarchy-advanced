@@ -413,6 +413,46 @@ prepare_partition_layout() {
   log_debug "Successfully replaced partition with new ESP and root on $disk"
 }
 
+prepare_free_space_layout() {
+  local disk="$1"
+  local free_start="$2"
+  local free_end="$3"
+
+  log_debug "Preparing free space for partitioning: disk=$disk, free_start=$free_start, free_end=$free_end"
+
+  prepare_disk_for_repartitioning "$disk"
+
+  # Calculate ESP end: start + 2GB (2048MB)
+  free_start_num=$(echo "$free_start" | sed 's/[^0-9]//g')
+  esp_end_num=$((free_start_num + 2048))
+  esp_end="${esp_end_num}MB"
+
+  log_debug "Creating ESP partition in free space: $free_start to $esp_end"
+  if ! parted -s "/dev/$disk" mkpart primary fat32 "$free_start" "$esp_end" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create ESP partition in free space" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  # Mark ESP flag on the newly created partition
+  local new_partition_num
+  new_partition_num=$(parted -s "/dev/$disk" print | tail -1 | awk '{print $1}')
+  if ! parted -s "/dev/$disk" set "$new_partition_num" esp on >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mark ESP partition" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  log_debug "Creating root partition in free space: $esp_end to $free_end"
+  if ! parted -s "/dev/$disk" mkpart primary btrfs "$esp_end" "$free_end" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create root partition in free space" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  log_debug "Successfully created partitions in free space on $disk"
+}
+
 # === END PARTITION PREP FUNCTIONS ===
 
 if command -v gum >/dev/null 2>&1; then
