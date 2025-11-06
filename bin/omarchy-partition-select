@@ -496,12 +496,51 @@ rebuild_options_menu() {
   lsblk_columns="PATH,NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT,LABEL,MODEL,PARTLABEL,PKNAME"
   lsblk_json=$(lsblk -J -o "$lsblk_columns" "${devices[@]}")
 
+  # === EXTRACT FREE SPACE REGIONS AND BUILD MERGED JSON ===
+  # Create associative array for free space regions organized by disk
+  declare -A free_space_by_disk
+
+  for disk in "${devices[@]}"; do
+    disk_name="${disk##*/}"
+    disk_path="/dev/$disk_name"
+
+    # Get free space regions from parted print free
+    local parted_output
+    parted_output=$(parted "$disk_path" print free 2>/dev/null)
+
+    # Build jq array of free space regions for this disk
+    local free_regions="[]"
+    while IFS='|' read -r free_start free_end free_size_str; do
+      if [[ -z "$free_start" ]] || [[ "$free_start" != *[0-9]* ]]; then
+        continue
+      fi
+
+      if [[ ! "$free_start" =~ Free\ Space|[0-9] ]]; then
+        continue
+      fi
+
+      free_size_str=$(echo "$free_size_str" | xargs)
+
+      # Append free space entry to jq array
+      free_regions=$(jq -n --arg start "$free_start" --arg end "$free_end" --arg size "$free_size_str" \
+        "$free_regions + [{\"start\": \$start, \"end\": \$end, \"size\": \$size, \"type\": \"freespace\"}]")
+
+      log_debug "Found free space on $disk_path: $free_start to $end ($free_size_str)"
+    done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}')
+
+    free_space_by_disk["$disk_name"]="$free_regions"
+  done
+
   # Clear options array before refilling to prevent duplicates on subsequent rebuild calls
   options=()
 
   # Prepare formatted lines for gum choose
   mapfile -t options < <(
-    jq -r '
+    jq -r \
+      --argjson free_space "$(jq -n \
+        $(for k in "${!free_space_by_disk[@]}"; do echo --arg "$k" "${free_space_by_disk[$k]}"; done) \
+        '{$(ARGS.named)}')" \
+      '
       def fmt_size($val):
         if $val == null or $val == "" then "" else " (" + $val + ")" end;
       def fmt_model($val):
@@ -520,96 +559,56 @@ rebuild_options_menu() {
       def fmt_size_warning($val):
         if $val == null or $val == "" then ""
         else
-          # Parse size string to bytes
           if ($val | test("[0-9]+\\.?[0-9]*G")) then
             ($val | scan("[0-9]+\\.?[0-9]*") | tonumber * 1024 * 1024 * 1024) as $bytes |
             if $bytes < (16 * 1024 * 1024 * 1024) then " \u001b[31m[TOO SMALL - 16GB minimum required]\u001b[0m" else "" end
           else ""
           end
-         end;
+        end;
+      def fmt_freespace($fs):
+        "(free space)" + fmt_size($fs.size);
 
       .blockdevices[]
       | select(.type == "disk")
       | . as $disk
       | ($disk.path + fmt_size($disk.size) + fmt_model($disk.model))
-      , (($disk.children // [])
+      , (
+          [
+            ($disk.children // [] | to_entries[] | .value),
+            ($free_space[($disk.path | split("/") | .[-1])] // [] | .[])
+          ] | sort_by(
+            .type as $type |
+            if $type == "freespace" then .start | split("[A-Za-z]+") | .[0] | tonumber
+            elif .type == "part" then .start else .start end
+          )
           | to_entries[]
           | . as $entry
-          | $entry.value as $part
-          | ($disk.path) as $disk_path
-          | ($entry.key == ( ( ($disk.children // []) | length) - 1 )) as $is_last
-          | (if $is_last then "  └─ " else "  ├─ " end)
-            + ($part.path
-               + fmt_size($part.size)
-               + fmt_fs($part)
-               + fmt_mount($part)
-             + fmt_label($part)
-             + fmt_size_warning($part.size)))
-  ' <<<"$lsblk_json"
+          | if .value.type == "freespace" then
+              (if ($entry.key == (
+                [
+                  ($disk.children // [] | to_entries[] | .value),
+                  ($free_space[($disk.path | split("/") | .[-1])] // [] | .[])
+                ] | length - 1
+              )) then "  └─ " else "  ├─ " end)
+              + (.value.path // "") + fmt_freespace(.value)
+              + "[START:" + .value.start + "|END:" + .value.end + "|DISK:" + $disk.path + "]"
+            else
+              (if ($entry.key == (
+                [
+                  ($disk.children // [] | to_entries[] | .value),
+                  ($free_space[($disk.path | split("/") | .[-1])] // [] | .[])
+                ] | length - 1
+              )) then "  └─ " else "  ├─ " end)
+              + (.path
+                + fmt_size(.size)
+                + fmt_fs(.)
+                + fmt_mount(.)
+                + fmt_label(.)
+                + fmt_size_warning(.size))
+            end
+        )
+      ' <<<"$lsblk_json"
   )
-
-  # Filter options to exclude partitions smaller than the minimum required size
-  # DISABLED: This filtering was removing small partitions from the menu entirely
-  # Instead, we show all partitions with warnings. The filtering logic was preventing
-  # users from seeing partitions < 14GB even though they had warning labels.
-  # local filtered_options=()
-  # local min_size_bytes=$((14 * 1024 * 1024 * 1024))
-  # for line in "${options[@]}"; do
-  #   device=$(printf "%s\n" "$line" | grep -oE '/dev/[a-z0-9]+' | tail -1)
-  #   if [[ "$line" =~ [└├] && -n "$device" ]]; then
-  #     size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
-  #     if (( size_bytes < min_size_bytes )); then
-  #       continue
-  #     fi
-  #   fi
-  #   filtered_options+=("$line")
-  # done
-  # options=("${filtered_options[@]}")
-
-  # === ADD FREE SPACE REGIONS TO OPTIONS ===
-  # Extract free space regions from each disk and add them to the menu
-  log_debug "Extracting free space regions for menu display"
-
-  local free_space_options=()
-  for disk in "${devices[@]}"; do
-    disk_name="${disk##*/}"
-    disk_path="/dev/$disk_name"
-
-    # Get free space regions from parted print free
-    local parted_output
-    parted_output=$(parted "$disk_path" print free 2>/dev/null)
-
-    # Extract free space regions
-    while IFS='|' read -r free_start free_end free_size_str; do
-      # Skip header lines and empty lines
-      if [[ -z "$free_start" ]] || [[ "$free_start" != *[0-9]* ]]; then
-        continue
-      fi
-
-      # Only process "Free Space" rows
-      if [[ ! "$free_start" =~ Free\ Space|[0-9] ]]; then
-        continue
-      fi
-
-      # Parse free space size
-      free_size_str=$(echo "$free_size_str" | xargs)
-
-      # Format the free space entry with tree prefix
-      # Note: We'll append these after the disk's partitions in final menu
-      free_space_options+=("$disk_path|$free_start|$free_end|$(printf "%s\n" "$free_size_str")")
-
-      log_debug "Found free space on $disk_path: $free_start to $free_end ($free_size_str)"
-    done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}')
-  done
-
-  # Append free space regions to options array with proper formatting
-  # For now, append at end - this could be enhanced to intersperse by disk
-  for free_entry in "${free_space_options[@]}"; do
-    IFS='|' read -r disk_path free_start free_end free_size <<<"$free_entry"
-    # Format: "  └─ (free space) SIZE" - using tree prefix like partitions
-    # Store disk info in the string for later extraction during selection
-    options+=("  └─ (free space) ($free_size) [START:$free_start|END:$free_end|DISK:$disk_path]")
-  done
 }
 
 # Build the initial options menu
