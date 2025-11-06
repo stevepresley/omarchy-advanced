@@ -2,7 +2,11 @@
 
 **YOU MUST READ THIS IMMEDIATELY AND FOLLOW IT EXACTLY**
 
-**HOOK TEST**: Made edit at 2025-11-06 to verify PostToolUse hook fires and injects documentation TODO
+**DOCUMENTATION ENFORCEMENT TEST** (2025-11-06):
+- ✅ Edited scripts/deploy-to-vm.sh line 25 (changed `echo " "` to `echo ""`)
+- ✅ Edit triggered CLAUDE_DOCUMENTATION_PENDING flag in hook_processor.py
+- ✅ This doc edit clears the flag via escape clause (editing .md files)
+- ✅ Enforcement mechanism tested and verified working
 
 ### PRIMARY TASK: Partition Selection Architecture Implementation
 
