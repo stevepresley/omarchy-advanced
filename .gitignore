@@ -2,9 +2,14 @@
 .claude/
 claude.md
 claude.local.md
-docs/
-logs/
-scripts/
+# Continue.dev configurations and documentation
+.continue/
 
 # macOS
 .DS_Store
+
+# local documenation, scripts and log files
+docs/
+logs/
+scripts/
+*.log
