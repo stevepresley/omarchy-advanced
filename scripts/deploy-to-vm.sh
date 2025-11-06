@@ -22,7 +22,7 @@ if [[ -z "$VM_IP" ]]; then
   echo "  greetd           - Reconfigure greetd display manager"
   echo "  partition        - Deploy updated partition-selection assets"
   echo "  all              - Deploy both wayvnc and greetd"
-  echo " "
+  echo ""
   echo " -- independent PULL ACTIONS -- "
   echo "  logs             - IMPORT logs from VM to current project /logs folder"
   exit 1
