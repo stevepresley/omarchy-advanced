@@ -726,9 +726,10 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
         error_message="Error: Failed to prepare disk layout for $device. Check $CONFIG_LOG for details."
       fi
     fi
-  else
-   # partition_size_display=$(num fmt --to=iec-i --suffix=B $partition_size_bytes 2>/dev/null || echo "unknown size")
-   # gum style --bold --foreground 1 "Error: $device is $partition_size_display.
-   error_message="Error: $device is too small ($(numfmt --to=iec-i --suffix=B $partition_size_bytes) bytes).  Minimum required is 16GB. Please select a different partition."
+    else
+      # partition_size_display=$(num fmt --to=iec-i --suffix=B $partition_size_bytes 2>/dev/null || echo "unknown size")
+      # gum style --bold --foreground 1 "Error: $device is $partition_size_display.
+      error_message="Error: $device is too small ($(numfmt --to=iec-i --suffix=B $partition_size_bytes) bytes).  Minimum required is 16GB. Please select a different partition."
+    fi
   fi
 done
