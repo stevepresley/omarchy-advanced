@@ -525,6 +525,51 @@ rebuild_options_menu() {
   #   filtered_options+=("$line")
   # done
   # options=("${filtered_options[@]}")
+
+  # === ADD FREE SPACE REGIONS TO OPTIONS ===
+  # Extract free space regions from each disk and add them to the menu
+  log_debug "Extracting free space regions for menu display"
+
+  local free_space_options=()
+  for disk in "${devices[@]}"; do
+    disk_name="${disk##*/}"
+    disk_path="/dev/$disk_name"
+
+    # Get free space regions from parted print free
+    local parted_output
+    parted_output=$(parted "$disk_path" print free 2>/dev/null)
+
+    # Extract free space regions
+    while IFS='|' read -r free_start free_end free_size_str; do
+      # Skip header lines and empty lines
+      if [[ -z "$free_start" ]] || [[ "$free_start" != *[0-9]* ]]; then
+        continue
+      fi
+
+      # Only process "Free Space" rows
+      if [[ ! "$free_start" =~ Free\ Space|[0-9] ]]; then
+        continue
+      fi
+
+      # Parse free space size
+      free_size_str=$(echo "$free_size_str" | xargs)
+
+      # Format the free space entry with tree prefix
+      # Note: We'll append these after the disk's partitions in final menu
+      free_space_options+=("$disk_path|$free_start|$free_end|$(printf "%s\n" "$free_size_str")")
+
+      log_debug "Found free space on $disk_path: $free_start to $free_end ($free_size_str)"
+    done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}')
+  done
+
+  # Append free space regions to options array with proper formatting
+  # For now, append at end - this could be enhanced to intersperse by disk
+  for free_entry in "${free_space_options[@]}"; do
+    IFS='|' read -r disk_path free_start free_end free_size <<<"$free_entry"
+    # Format: "  └─ (free space) SIZE" - using tree prefix like partitions
+    # Store disk info in the string for later extraction during selection
+    options+=("  └─ (free space) ($free_size) [START:$free_start|END:$free_end|DISK:$disk_path]")
+  done
 }
 
 # Build the initial options menu
