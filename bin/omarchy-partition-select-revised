@@ -81,9 +81,12 @@ build_unified_mapfile() {
         partition_num = $1
 
         # Verify we have valid unit suffixes
+        print "DEBUG:   Checking start_str=" start_str " end_str=" end_str > "/dev/stderr"
         if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
+          print "DEBUG:   FAILED unit suffix check" > "/dev/stderr"
           next
         }
+        print "DEBUG:   PASSED unit suffix check" > "/dev/stderr"
 
         # Convert start to MB
         if (start_str ~ /GB$/) {
@@ -95,6 +98,7 @@ build_unified_mapfile() {
         } else if (start_str ~ /B$/) {
           start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
         } else {
+          print "DEBUG:   FAILED to convert start_str unit" > "/dev/stderr"
           next
         }
 
@@ -108,26 +112,35 @@ build_unified_mapfile() {
         } else if (end_str ~ /B$/) {
           end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
         } else {
+          print "DEBUG:   FAILED to convert end_str unit" > "/dev/stderr"
           next
         }
 
         size_mb = int(end_mb - start_mb)
         partition_name = disk partition_num
+        print "DEBUG:   Outputting: " disk "|" partition_name "|" start_mb "|" end_mb "|" size_mb "|part" > "/dev/stderr"
         printf "%s|%s|%.0f|%.0f|%d|part\n", disk, partition_name, start_mb, end_mb, size_mb
         next
       }
 
       # Match free space lines: whitespace at start AND contains "Free Space"
       /^[[:space:]]+/ && /Free Space/ {
+        print "DEBUG: Found free space line: " $0 > "/dev/stderr"
+        print "DEBUG:   Field count: " NF > "/dev/stderr"
+        print "DEBUG:   $1=" $1 " $2=" $2 " $3=" $3 > "/dev/stderr"
+
         # Free space line: extract fields
         # Format: "        start   end     size    Free Space"
         start_str = $1
         end_str = $2
 
         # Verify we have valid unit suffixes
+        print "DEBUG:   Checking start_str=" start_str " end_str=" end_str > "/dev/stderr"
         if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
+          print "DEBUG:   FAILED unit suffix check" > "/dev/stderr"
           next
         }
+        print "DEBUG:   PASSED unit suffix check" > "/dev/stderr"
 
         # Convert start to MB
         if (start_str ~ /GB$/) {
@@ -139,6 +152,7 @@ build_unified_mapfile() {
         } else if (start_str ~ /B$/) {
           start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
         } else {
+          print "DEBUG:   FAILED to convert start_str unit" > "/dev/stderr"
           next
         }
 
@@ -152,10 +166,12 @@ build_unified_mapfile() {
         } else if (end_str ~ /B$/) {
           end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
         } else {
+          print "DEBUG:   FAILED to convert end_str unit" > "/dev/stderr"
           next
         }
 
         size_mb = int(end_mb - start_mb)
+        print "DEBUG:   Outputting: " disk "|free|" start_mb "|" end_mb "|" size_mb "|free" > "/dev/stderr"
         printf "%s|free|%.0f|%.0f|%d|free\n", disk, start_mb, end_mb, size_mb
         next
       }
