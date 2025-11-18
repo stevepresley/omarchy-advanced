@@ -145,39 +145,32 @@ build_unified_mapfile() {
   rm -f "$temp_file"
 }
 
-# === BUILD MAPFILE #3: MERGED AND ORDERED ===
+# === SORT MAPFILE BY DISK AND POSITION ===
 
-build_merged_mapfile() {
-  local -n partitions=$1
-  local -n freespace=$2
-  local -n result=$3
-  local temp_combined
+sort_mapfile() {
+  local -n entries=$1
+  local -n result=$2
+  local temp_file
   local temp_sorted
 
   result=()
-  temp_combined=$(mktemp)
+  temp_file=$(mktemp)
   temp_sorted=$(mktemp)
 
-  # Write partitions to combined file
-  for entry in "${partitions[@]}"; do
-    echo "$entry" >> "$temp_combined"
+  # Write all entries to temp file
+  for entry in "${entries[@]}"; do
+    echo "$entry" >> "$temp_file"
   done
 
-  # Write freespace to combined file
-  for entry in "${freespace[@]}"; do
-    echo "$entry" >> "$temp_combined"
-  done
-
-  # Sort the combined entries to a separate file
   # Sort by: disk name (field 1), then by start position (field 3 numerically)
-  sort -t'|' -k1,1 -k3,3n "$temp_combined" > "$temp_sorted"
+  sort -t'|' -k1,1 -k3,3n "$temp_file" > "$temp_sorted"
 
   # Read sorted file into array
   while IFS='|' read -r disk label start end size type; do
     result+=("$disk|$label|$start|$end|$size|$type")
   done < "$temp_sorted"
 
-  rm -f "$temp_combined" "$temp_sorted"
+  rm -f "$temp_file" "$temp_sorted"
 }
 
 # === DISPLAY MERGED MAP ===
