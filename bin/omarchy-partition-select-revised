@@ -84,7 +84,9 @@ build_unified_mapfile() {
         next
       }
       /^Sector/ {
-        print "DEBUG AWK: Skipping Sector header" > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Skipping Sector header" > "/dev/stderr"
+        }
         next
       }
       /^Partition Table/ {
