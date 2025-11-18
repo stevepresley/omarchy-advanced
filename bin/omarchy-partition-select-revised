@@ -24,10 +24,13 @@ build_unified_mapfile() {
   result=()
   temp_file=$(mktemp)
 
-  # Get all disk names only
-  disks=$(lsblk -nd -o NAME 2>/dev/null | grep -E '^[a-z]+d$' || true)
+  echo "DEBUG: [$(date '+%Y-%m-%d %H:%M:%S')] Starting build_unified_mapfile" >&2
 
-  echo "DEBUG: Found disks: $disks" >&2
+  # Get all disk names only - match any block device that is a whole disk (no partition number at end)
+  disks=$(lsblk -nd -o NAME 2>/dev/null | grep -v '[0-9]$' || true)
+
+  echo "DEBUG: Found disks: '$disks'" >&2
+  echo "DEBUG: Disk list line count: $(echo "$disks" | wc -l)" >&2
 
   while read -r disk; do
     [[ -z "$disk" ]] && continue
