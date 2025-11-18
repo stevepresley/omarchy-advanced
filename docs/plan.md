@@ -73,6 +73,46 @@ To: `if (debug == "true") { print "MESSAGE" > "/dev/stderr" }`
 - Test with `/root/omarchy/bin/omarchy-partition-select-revised true` (full debug output)
 - Verify mapfile is still extracted correctly in both modes
 
+**SYSTEMATIC CONVERSION RESEARCH (Session 2025-11-18)**:
+
+Total awk debug statements found: 24
+Already converted: 1 (BEGIN block at line 64)
+Remaining: 23
+
+Breakdown by section:
+1. **Header-skipping rules (7 statements)**:
+   - Empty line rule (line 71)
+   - Number header (line 73)
+   - Disk header (line 77)
+   - Sector header (line 81)
+   - Partition Table header (line 85)
+   - Disk Flags header (line 89)
+   - Model header (line 93)
+
+2. **Generic line processing (1 statement)**:
+   - Processing line debug (line 102)
+
+3. **Partition processing (7 statements)**:
+   - Found partition line (line 106)
+   - Partition extraction debug (line 115)
+   - Unit suffix check failure (line 119)
+   - Unit suffix check passed (line 122)
+   - Start unit conversion failure (line 134)
+   - End unit conversion failure (line 148)
+   - Outputting partition debug (line 154)
+
+4. **Free space processing (7 statements)**:
+   - Found free space line (line 161)
+   - Free space extraction debug (line 167)
+   - Unit suffix check failure (line 171)
+   - Unit suffix check passed (line 174)
+   - Start unit conversion failure (line 186)
+   - End unit conversion failure (line 200)
+   - Outputting free space debug (line 205)
+
+5. **END block (1 statement)**:
+   - Finished parsing debug (line 212)
+
 **Progress**:
 - ✅ Added DEBUG parameter and debug_echo() helper function
 - ✅ Converted bash debug statements (lines 39-59) to use debug_echo()
