@@ -51,7 +51,8 @@ STOP READING HERE UNTIL THIS FEATURE WORK IS COMPLETE, or the user tells you to 
 
 **Progress**:
 - ✅ Added DEBUG parameter and debug_echo() helper function
-- ⏳ Converting all `echo "DEBUG:..." >&2` statements to use `debug_echo()` function
+- ✅ Converted bash debug statements (lines 39-59) to use debug_echo()
+- ⏳ Converting awk debug statements to pass DEBUG variable and conditionally print
 - Testing debug flag functionality after conversions complete
 
 ---
