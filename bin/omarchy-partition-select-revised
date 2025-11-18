@@ -3,6 +3,8 @@
 # Partition selector using parted as single source of truth
 # Parse 'parted disk print free' output to extract both partitions and free space regions
 # in correct order and with correct boundaries
+# Usage: omarchy-partition-select [debug]
+#   debug: optional, set to "true" to show detailed debug output (default: false)
 
 set -euo pipefail
 
@@ -11,6 +13,16 @@ if [[ -z "${OMARCHY_PATH:-}" ]]; then
 fi
 
 source "$OMARCHY_PATH/install/helpers/presentation.sh"
+
+# Parse command line arguments for debug flag
+DEBUG=${1:-false}
+
+# Helper function for debug output
+debug_echo() {
+  if [[ "$DEBUG" == "true" ]]; then
+    echo "$@" >&2
+  fi
+}
 
 # === BUILD UNIFIED MAPFILE FROM PARTED OUTPUT ===
 # Structure: disk|label|start_mb|end_mb|size_mb|type
