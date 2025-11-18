@@ -36,25 +36,27 @@ build_unified_mapfile() {
   result=()
   temp_file=$(mktemp)
 
-  echo "DEBUG: [$(date '+%Y-%m-%d %H:%M:%S')] Starting build_unified_mapfile" >&2
+  debug_echo "DEBUG: [$(date '+%Y-%m-%d %H:%M:%S')] Starting build_unified_mapfile"
 
   # Get all disk names only - exclude loop devices (major 7) and sr/cd-rom (major 11)
   disks=$(lsblk -e7,11 -nd -o NAME 2>/dev/null || true)
 
-  echo "DEBUG: Found disks: '$disks'" >&2
-  echo "DEBUG: Disk list line count: $(echo "$disks" | wc -l)" >&2
+  debug_echo "DEBUG: Found disks: '$disks'"
+  debug_echo "DEBUG: Disk list line count: $(echo "$disks" | wc -l)"
 
   while read -r disk; do
     [[ -z "$disk" ]] && continue
 
-    echo "DEBUG: Processing disk: $disk" >&2
+    debug_echo "DEBUG: Processing disk: $disk"
 
     # Get BOTH partitions AND free space from single parted command
     local parted_output
     parted_output=$(sudo parted "/dev/$disk" print free 2>/dev/null || echo "")
 
-    echo "DEBUG: Parted output for /dev/$disk:" >&2
-    echo "$parted_output" | sed 's/^/DEBUG:   /' >&2
+    debug_echo "DEBUG: Parted output for /dev/$disk:"
+    if [[ "$DEBUG" == "true" ]]; then
+      echo "$parted_output" | sed 's/^/DEBUG:   /' >&2
+    fi
 
     # Parse parted output for both partition lines and free space lines
     echo "$parted_output" | awk -v disk="$disk" '
