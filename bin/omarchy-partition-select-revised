@@ -59,7 +59,7 @@ build_unified_mapfile() {
     fi
 
     # Parse parted output for both partition lines and free space lines
-    echo "$parted_output" | awk -v disk="$disk" '
+    echo "$parted_output" | awk -v disk="$disk" -v debug="$DEBUG" '
       BEGIN {
         print "DEBUG AWK: Starting parse for disk " disk > "/dev/stderr"
       }
