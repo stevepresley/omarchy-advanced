@@ -85,23 +85,29 @@ build_freespace_mapfile() {
         }
 
         # Convert start to MB
-        if (start_str ~ /kB$/) {
-          start_mb = substr(start_str, 1, length(start_str)-2) / 1024
+        if (start_str ~ /GB$/) {
+          start_mb = substr(start_str, 1, length(start_str)-2) * 1024
         } else if (start_str ~ /MB$/) {
           start_mb = substr(start_str, 1, length(start_str)-2)
-        } else if (start_str ~ /GB$/) {
-          start_mb = substr(start_str, 1, length(start_str)-2) * 1024
+        } else if (start_str ~ /kB$/) {
+          start_mb = substr(start_str, 1, length(start_str)-2) / 1024
+        } else if (start_str ~ /B$/) {
+          # Bare bytes (e.g., "1024B")
+          start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
         } else {
           next
         }
 
         # Convert end to MB
-        if (end_str ~ /kB$/) {
-          end_mb = substr(end_str, 1, length(end_str)-2) / 1024
+        if (end_str ~ /GB$/) {
+          end_mb = substr(end_str, 1, length(end_str)-2) * 1024
         } else if (end_str ~ /MB$/) {
           end_mb = substr(end_str, 1, length(end_str)-2)
-        } else if (end_str ~ /GB$/) {
-          end_mb = substr(end_str, 1, length(end_str)-2) * 1024
+        } else if (end_str ~ /kB$/) {
+          end_mb = substr(end_str, 1, length(end_str)-2) / 1024
+        } else if (end_str ~ /B$/) {
+          # Bare bytes (e.g., "1024B")
+          end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
         } else {
           next
         }
