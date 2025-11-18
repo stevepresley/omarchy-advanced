@@ -68,7 +68,7 @@ build_freespace_mapfile() {
 
     # Get free space regions from parted
     local parted_output
-    parted_output=$(parted "/dev/$disk" print free 2>/dev/null || echo "")
+    parted_output=$(sudo parted "/dev/$disk" print free 2>/dev/null || echo "")
 
     # Parse parted output and write to temp file
     echo "$parted_output" | awk -v disk="$disk" '
