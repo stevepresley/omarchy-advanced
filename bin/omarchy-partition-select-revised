@@ -79,8 +79,8 @@ build_freespace_mapfile() {
         start_str = $1
         end_str = $2
 
-        # Verify we got valid data
-        if (start_str !~ /[kMG]B$/ || end_str !~ /[kMG]B$/) {
+        # Verify we got valid data (must end with B, kB, MB, or GB)
+        if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
           next
         }
 
