@@ -262,8 +262,10 @@ build_unified_mapfile() {
     ' >> "$temp_file"
   done <<< "$disks"
 
-  echo "DEBUG: Temp file contents:" >&2
-  cat "$temp_file" | sed 's/^/DEBUG:   /' >&2
+  debug_echo "DEBUG: Temp file contents:"
+  if [[ "$DEBUG" == "true" ]]; then
+    cat "$temp_file" | sed 's/^/DEBUG:   /' >&2
+  fi
 
   # Read from temp file and populate array
   while IFS='|' read -r disk label start end size type; do
