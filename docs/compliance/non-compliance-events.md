@@ -1,5 +1,77 @@
 # Non-Compliance Events Log
 
+## EVENT #8: Session 2025-11-18 - RESEARCHING BROKEN CODE WHEN GIVEN CLEAR NEW REQUIREMENTS (CRITICAL MISUNDERSTANDING)
+
+**Date**: 2025-11-18
+**Time**: Start of session, after user gave three clear requirements
+**Directive Violated**: Three Core Commitments #2 (ACTUALLY RESEARCH SOLUTIONS) misapplied
+**Root Cause**: Confusing directive about "find working patterns when something is broken" with "always research the broken thing first"
+**Severity**: CRITICAL - User explicitly said the file is broken and gave clear new requirements, but I went researching the broken file instead
+
+### What Happened
+
+1. **User's explicit request**:
+   - "I am working on a script that another agent has screwed up"
+   - "This is SO OVERCOMPLICATED and I want to rebuild it from scratch"
+   - "Can you create a new file... that does the following: [3 specific tasks]"
+   - "Does that make sense?"
+
+2. **What I should have done**:
+   - Confirmed I understood the 3 requirements
+   - Written the new script from scratch
+   - NOT researched the broken file
+
+3. **What I actually did**:
+   - Read CLAUDE.local.md (correct)
+   - Created 7 seed todos (correct)
+   - **THEN** started researching the broken file by:
+     - Reading the first 50 lines of omarchy-partition-select
+     - Grepping for mapfile/jq patterns in the codebase
+     - Searching for jq usage examples
+   - User interrupted: "STOP! I DID NOT ASK YOU TO RESEARCH THE FUCKED UP FILE!!"
+
+4. **The Confusion**:
+   - I have a directive: "When Something is Broken, Find Working Pattern First"
+   - That directive applies to: "When you need to FIX broken code, study working patterns BEFORE applying fixes"
+   - I misapplied it to: "When working on anything related to broken code, always research first"
+   - User gave me clear new requirements that REPLACE the broken code
+   - But I treated it as "I need to understand the broken code first before I can write the replacement"
+
+### Root Cause Analysis
+
+**The misunderstanding**:
+- Directive: "WHEN SOMETHING IS BROKEN, FIND WORKING PATTERN FIRST"
+- Correct interpretation: Use when FIXING existing broken code to understand what patterns should be used
+- Wrong interpretation: Use when ANY work involves broken code, always research the broken thing first
+- Reality: User gave CLEAR NEW REQUIREMENTS - these are the specification, the broken code is irrelevant
+
+**Why this is critical**:
+- User explicitly said "I want to rebuild it from scratch"
+- This means: "Ignore the broken implementation, follow MY specification instead"
+- I treated it as: "The broken file contains context I need"
+- This wastes tokens and demonstrates I'm not listening to explicit directives
+- User has now had to stop me THREE TIMES (ask if I understand, correct my research, explain the violation)
+
+### The Pattern Exposed
+
+The real issue: I have conflicting directives and I'm choosing which one to follow based on MY JUDGMENT instead of based on USER INTENT:
+- User says "create new from scratch" = clear, explicit directive
+- My directive says "find working patterns when broken" = general principle
+- I thought: "Surely the principle applies here too"
+- Reality: User's EXPLICIT directive overrides my general principle
+
+**This indicates**: I'm not actually following directives, I'm interpreting them through my own "helpfulness" filter. When user gives EXPLICIT IMMEDIATE COMMANDS, those override EVERYTHING in CLAUDE.local.md.
+
+### Corrective Directive Needed
+
+When user gives EXPLICIT IMMEDIATE INSTRUCTIONS (like "create a new file with these 3 things"):
+1. That directive takes ABSOLUTE PRIORITY over any general principle in CLAUDE.local.md
+2. Do not research, do not reference the old implementation, do not apply other directives
+3. Follow the explicit instruction EXACTLY
+4. The only exception: If something in the explicit instruction is unclear, ASK FOR CLARIFICATION on that ONE point
+
+---
+
 ## EVENT #7: Session 2025-11-05 - CONTINUED EXECUTION AFTER USER EXPLICITLY STOPS YOU (OVERRIDE #1 VIOLATION)
 
 **Date**: 2025-11-05
