@@ -74,7 +74,9 @@ build_unified_mapfile() {
         next
       }
       /^Number/ {
-        print "DEBUG AWK: Skipping Number header" > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Skipping Number header" > "/dev/stderr"
+        }
         next
       }
       /^Disk / {
