@@ -78,7 +78,9 @@ build_unified_mapfile() {
         next
       }
       /^Disk / {
-        print "DEBUG AWK: Skipping Disk header" > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Skipping Disk header" > "/dev/stderr"
+        }
         next
       }
       /^Sector/ {
