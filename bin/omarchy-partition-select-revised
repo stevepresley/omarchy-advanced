@@ -113,7 +113,9 @@ build_unified_mapfile() {
         # Trim leading whitespace
         gsub(/^[[:space:]]+/, "")
 
-        print "DEBUG AWK: Processing line (after trim): [" $0 "]" > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Processing line (after trim): [" $0 "]" > "/dev/stderr"
+        }
 
         # Check if line starts with a digit (partition number)
         if ($0 ~ /^[0-9]+[[:space:]]/) {
