@@ -537,7 +537,9 @@ rebuild_options_menu() {
   # Prepare formatted lines for gum choose
   mapfile -t options < <(
     jq -r \
-      --argjson free_space "$free_space_json" \
+      --argjson free_space "$(jq -n \
+        $(for k in "${!free_space_by_disk[@]}"; do echo --arg "$k" "${free_space_by_disk[$k]}"; done) \
+        '{$(ARGS.named)}')" \
       '
       def fmt_size($val):
         if $val == null or $val == "" then "" else " (" + $val + ")" end;
