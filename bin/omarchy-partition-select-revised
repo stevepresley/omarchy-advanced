@@ -27,34 +27,66 @@ build_unified_mapfile() {
   # Get all disk names only
   disks=$(lsblk -nd -o NAME 2>/dev/null | grep -E '^[a-z]+d$' || true)
 
+  echo "DEBUG: Found disks: $disks" >&2
+
   while read -r disk; do
     [[ -z "$disk" ]] && continue
+
+    echo "DEBUG: Processing disk: $disk" >&2
 
     # Get BOTH partitions AND free space from single parted command
     local parted_output
     parted_output=$(sudo parted "/dev/$disk" print free 2>/dev/null || echo "")
 
+    echo "DEBUG: Parted output for /dev/$disk:" >&2
+    echo "$parted_output" | sed 's/^/DEBUG:   /' >&2
+
     # Parse parted output for both partition lines and free space lines
     echo "$parted_output" | awk -v disk="$disk" '
-      # Skip header/footer lines and empty lines
-      /^[[:space:]]*$/ { next }
-      /^Number/ { next }
-      /^Disk / { next }
-      /^Sector/ { next }
-      /^Partition Table/ { next }
-      /^Disk Flags/ { next }
-      /^Model:/ { next }
+      BEGIN {
+        print "DEBUG AWK: Starting parse for disk " disk > "/dev/stderr"
+      }
 
-      # Match partition lines: space + number + whitespace + start + end + size
-      # Format: " 1      1049kB  2149MB  2147MB  primary  fat32        boot, esp"
-      # Must use explicit parsing because leading space shifts field positions
+      # Skip header/footer lines and empty lines
+      /^[[:space:]]*$/ {
+        print "DEBUG AWK: Skipping empty line" > "/dev/stderr"
+        next
+      }
+      /^Number/ {
+        print "DEBUG AWK: Skipping Number header" > "/dev/stderr"
+        next
+      }
+      /^Disk / {
+        print "DEBUG AWK: Skipping Disk header" > "/dev/stderr"
+        next
+      }
+      /^Sector/ {
+        print "DEBUG AWK: Skipping Sector header" > "/dev/stderr"
+        next
+      }
+      /^Partition Table/ {
+        print "DEBUG AWK: Skipping Partition Table header" > "/dev/stderr"
+        next
+      }
+      /^Disk Flags/ {
+        print "DEBUG AWK: Skipping Disk Flags header" > "/dev/stderr"
+        next
+      }
+      /^Model:/ {
+        print "DEBUG AWK: Skipping Model header" > "/dev/stderr"
+        next
+      }
+
       {
+        line_copy = $0
         # Trim leading whitespace
         gsub(/^[[:space:]]+/, "")
 
+        print "DEBUG AWK: Processing line (after trim): [" $0 "]" > "/dev/stderr"
+
         # Check if line starts with a digit (partition number)
         if ($0 ~ /^[0-9]+[[:space:]]/) {
-          print "DEBUG: Found partition line: " $0 > "/dev/stderr"
+          print "DEBUG AWK: Found partition line: " line_copy > "/dev/stderr"
 
           # Extract partition number (first token)
           partition_num = $1
@@ -63,14 +95,14 @@ build_unified_mapfile() {
           # End is third token
           end_str = $3
 
-          print "DEBUG:   partition_num=" partition_num " start_str=" start_str " end_str=" end_str > "/dev/stderr"
+          print "DEBUG AWK:   partition_num=" partition_num " start_str=" start_str " end_str=" end_str > "/dev/stderr"
 
           # Verify we have valid unit suffixes
           if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
-            print "DEBUG:   FAILED unit suffix check" > "/dev/stderr"
+            print "DEBUG AWK:   FAILED unit suffix check" > "/dev/stderr"
             next
           }
-          print "DEBUG:   PASSED unit suffix check" > "/dev/stderr"
+          print "DEBUG AWK:   PASSED unit suffix check" > "/dev/stderr"
 
           # Convert start to MB
           if (start_str ~ /GB$/) {
@@ -82,7 +114,7 @@ build_unified_mapfile() {
           } else if (start_str ~ /B$/) {
             start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
           } else {
-            print "DEBUG:   FAILED to convert start_str unit" > "/dev/stderr"
+            print "DEBUG AWK:   FAILED to convert start_str unit" > "/dev/stderr"
             next
           }
 
@@ -96,33 +128,33 @@ build_unified_mapfile() {
           } else if (end_str ~ /B$/) {
             end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
           } else {
-            print "DEBUG:   FAILED to convert end_str unit" > "/dev/stderr"
+            print "DEBUG AWK:   FAILED to convert end_str unit" > "/dev/stderr"
             next
           }
 
           size_mb = int(end_mb - start_mb)
           partition_name = disk partition_num
-          print "DEBUG:   Outputting partition: " disk "|" partition_name "|" start_mb "|" end_mb "|" size_mb "|part" > "/dev/stderr"
+          print "DEBUG AWK:   Outputting partition: " disk "|" partition_name "|" start_mb "|" end_mb "|" size_mb "|part" > "/dev/stderr"
           printf "%s|%s|%.0f|%.0f|%d|part\n", disk, partition_name, start_mb, end_mb, size_mb
           next
         }
 
         # Check if line contains "Free Space" (after trimming leading space)
         if ($0 ~ /Free Space/) {
-          print "DEBUG: Found free space line: " $0 > "/dev/stderr"
+          print "DEBUG AWK: Found free space line: " line_copy > "/dev/stderr"
 
           # Start is first token, end is second token
           start_str = $1
           end_str = $2
 
-          print "DEBUG:   start_str=" start_str " end_str=" end_str > "/dev/stderr"
+          print "DEBUG AWK:   start_str=" start_str " end_str=" end_str > "/dev/stderr"
 
           # Verify we have valid unit suffixes
           if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
-            print "DEBUG:   FAILED unit suffix check" > "/dev/stderr"
+            print "DEBUG AWK:   FAILED unit suffix check" > "/dev/stderr"
             next
           }
-          print "DEBUG:   PASSED unit suffix check" > "/dev/stderr"
+          print "DEBUG AWK:   PASSED unit suffix check" > "/dev/stderr"
 
           # Convert start to MB
           if (start_str ~ /GB$/) {
@@ -134,7 +166,7 @@ build_unified_mapfile() {
           } else if (start_str ~ /B$/) {
             start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
           } else {
-            print "DEBUG:   FAILED to convert start_str unit" > "/dev/stderr"
+            print "DEBUG AWK:   FAILED to convert start_str unit" > "/dev/stderr"
             next
           }
 
@@ -148,18 +180,25 @@ build_unified_mapfile() {
           } else if (end_str ~ /B$/) {
             end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
           } else {
-            print "DEBUG:   FAILED to convert end_str unit" > "/dev/stderr"
+            print "DEBUG AWK:   FAILED to convert end_str unit" > "/dev/stderr"
             next
           }
 
           size_mb = int(end_mb - start_mb)
-          print "DEBUG:   Outputting free space: " disk "|free|" start_mb "|" end_mb "|" size_mb "|free" > "/dev/stderr"
+          print "DEBUG AWK:   Outputting free space: " disk "|free|" start_mb "|" end_mb "|" size_mb "|free" > "/dev/stderr"
           printf "%s|free|%.0f|%.0f|%d|free\n", disk, start_mb, end_mb, size_mb
           next
         }
       }
+
+      END {
+        print "DEBUG AWK: Finished parsing disk " disk > "/dev/stderr"
+      }
     ' >> "$temp_file"
   done <<< "$disks"
+
+  echo "DEBUG: Temp file contents:" >&2
+  cat "$temp_file" | sed 's/^/DEBUG:   /' >&2
 
   # Read from temp file and populate array
   while IFS='|' read -r disk label start end size type; do
