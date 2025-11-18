@@ -14,8 +14,24 @@ fi
 
 source "$OMARCHY_PATH/install/helpers/presentation.sh"
 
-# Parse command line arguments for debug flag
-DEBUG=${1:-false}
+# Parse command line arguments
+# Usage: omarchy-partition-select [debug|display]
+#   debug: set to "true" to show internal debug output (default: false)
+#   display: show the disk layout map instead of interactive menu
+DEBUG=false
+DISPLAY=false
+
+# Parse parameters
+for param in "$@"; do
+  case "$param" in
+    true|debug)
+      DEBUG=true
+      ;;
+    display)
+      DISPLAY=true
+      ;;
+  esac
+done
 
 # Helper function for debug output
 debug_echo() {
