@@ -35,145 +35,128 @@ build_unified_mapfile() {
     parted_output=$(sudo parted "/dev/$disk" print free 2>/dev/null || echo "")
 
     # Parse parted output for both partition lines and free space lines
-    # Partition lines: have a number in first column
-    # Free space lines: start with whitespace, contain "Free Space" text
     echo "$parted_output" | awk -v disk="$disk" '
       # Skip header/footer lines and empty lines
-      /^[[:space:]]*$/ {
-        print "DEBUG: Skipping empty line" > "/dev/stderr"
-        next
-      }
-      /^Number/ {
-        print "DEBUG: Skipping Number header" > "/dev/stderr"
-        next
-      }
-      /^Disk / {
-        print "DEBUG: Skipping Disk header" > "/dev/stderr"
-        next
-      }
-      /^Sector/ {
-        print "DEBUG: Skipping Sector header" > "/dev/stderr"
-        next
-      }
-      /^Partition Table/ {
-        print "DEBUG: Skipping Partition Table header" > "/dev/stderr"
-        next
-      }
-      /^Disk Flags/ {
-        print "DEBUG: Skipping Disk Flags header" > "/dev/stderr"
-        next
-      }
-      /^Model:/ {
-        print "DEBUG: Skipping Model header" > "/dev/stderr"
-        next
-      }
+      /^[[:space:]]*$/ { next }
+      /^Number/ { next }
+      /^Disk / { next }
+      /^Sector/ { next }
+      /^Partition Table/ { next }
+      /^Disk Flags/ { next }
+      /^Model:/ { next }
 
-      # Match partition lines: "Number  Start   End     Size    ..."
-      /^[[:space:]]*[0-9]+[[:space:]]+/ {
-        print "DEBUG: Found partition line: " $0 > "/dev/stderr"
-        print "DEBUG:   Field count: " NF > "/dev/stderr"
-        print "DEBUG:   $1=" $1 " $2=" $2 " $3=" $3 " $4=" $4 > "/dev/stderr"
+      # Match partition lines: space + number + whitespace + start + end + size
+      # Format: " 1      1049kB  2149MB  2147MB  primary  fat32        boot, esp"
+      # Must use explicit parsing because leading space shifts field positions
+      {
+        # Trim leading whitespace
+        gsub(/^[[:space:]]+/, "")
 
-        # Partition line: extract fields
-        # $1=number, $2=start, $3=end, $4=size, remaining=type/filesystem/flags
-        start_str = $2
-        end_str = $3
-        partition_num = $1
+        # Check if line starts with a digit (partition number)
+        if ($0 ~ /^[0-9]+[[:space:]]/) {
+          print "DEBUG: Found partition line: " $0 > "/dev/stderr"
 
-        # Verify we have valid unit suffixes
-        print "DEBUG:   Checking start_str=" start_str " end_str=" end_str > "/dev/stderr"
-        if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
-          print "DEBUG:   FAILED unit suffix check" > "/dev/stderr"
-          next
-        }
-        print "DEBUG:   PASSED unit suffix check" > "/dev/stderr"
+          # Extract partition number (first token)
+          partition_num = $1
+          # Start is second token
+          start_str = $2
+          # End is third token
+          end_str = $3
 
-        # Convert start to MB
-        if (start_str ~ /GB$/) {
-          start_mb = substr(start_str, 1, length(start_str)-2) * 1024
-        } else if (start_str ~ /MB$/) {
-          start_mb = substr(start_str, 1, length(start_str)-2)
-        } else if (start_str ~ /kB$/) {
-          start_mb = substr(start_str, 1, length(start_str)-2) / 1024
-        } else if (start_str ~ /B$/) {
-          start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
-        } else {
-          print "DEBUG:   FAILED to convert start_str unit" > "/dev/stderr"
-          next
-        }
+          print "DEBUG:   partition_num=" partition_num " start_str=" start_str " end_str=" end_str > "/dev/stderr"
 
-        # Convert end to MB
-        if (end_str ~ /GB$/) {
-          end_mb = substr(end_str, 1, length(end_str)-2) * 1024
-        } else if (end_str ~ /MB$/) {
-          end_mb = substr(end_str, 1, length(end_str)-2)
-        } else if (end_str ~ /kB$/) {
-          end_mb = substr(end_str, 1, length(end_str)-2) / 1024
-        } else if (end_str ~ /B$/) {
-          end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
-        } else {
-          print "DEBUG:   FAILED to convert end_str unit" > "/dev/stderr"
+          # Verify we have valid unit suffixes
+          if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
+            print "DEBUG:   FAILED unit suffix check" > "/dev/stderr"
+            next
+          }
+          print "DEBUG:   PASSED unit suffix check" > "/dev/stderr"
+
+          # Convert start to MB
+          if (start_str ~ /GB$/) {
+            start_mb = substr(start_str, 1, length(start_str)-2) * 1024
+          } else if (start_str ~ /MB$/) {
+            start_mb = substr(start_str, 1, length(start_str)-2)
+          } else if (start_str ~ /kB$/) {
+            start_mb = substr(start_str, 1, length(start_str)-2) / 1024
+          } else if (start_str ~ /B$/) {
+            start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
+          } else {
+            print "DEBUG:   FAILED to convert start_str unit" > "/dev/stderr"
+            next
+          }
+
+          # Convert end to MB
+          if (end_str ~ /GB$/) {
+            end_mb = substr(end_str, 1, length(end_str)-2) * 1024
+          } else if (end_str ~ /MB$/) {
+            end_mb = substr(end_str, 1, length(end_str)-2)
+          } else if (end_str ~ /kB$/) {
+            end_mb = substr(end_str, 1, length(end_str)-2) / 1024
+          } else if (end_str ~ /B$/) {
+            end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
+          } else {
+            print "DEBUG:   FAILED to convert end_str unit" > "/dev/stderr"
+            next
+          }
+
+          size_mb = int(end_mb - start_mb)
+          partition_name = disk partition_num
+          print "DEBUG:   Outputting partition: " disk "|" partition_name "|" start_mb "|" end_mb "|" size_mb "|part" > "/dev/stderr"
+          printf "%s|%s|%.0f|%.0f|%d|part\n", disk, partition_name, start_mb, end_mb, size_mb
           next
         }
 
-        size_mb = int(end_mb - start_mb)
-        partition_name = disk partition_num
-        print "DEBUG:   Outputting: " disk "|" partition_name "|" start_mb "|" end_mb "|" size_mb "|part" > "/dev/stderr"
-        printf "%s|%s|%.0f|%.0f|%d|part\n", disk, partition_name, start_mb, end_mb, size_mb
-        next
-      }
+        # Check if line contains "Free Space" (after trimming leading space)
+        if ($0 ~ /Free Space/) {
+          print "DEBUG: Found free space line: " $0 > "/dev/stderr"
 
-      # Match free space lines: whitespace at start AND contains "Free Space"
-      /^[[:space:]]+/ && /Free Space/ {
-        print "DEBUG: Found free space line: " $0 > "/dev/stderr"
-        print "DEBUG:   Field count: " NF > "/dev/stderr"
-        print "DEBUG:   $1=" $1 " $2=" $2 " $3=" $3 > "/dev/stderr"
+          # Start is first token, end is second token
+          start_str = $1
+          end_str = $2
 
-        # Free space line: extract fields
-        # Format: "        start   end     size    Free Space"
-        start_str = $1
-        end_str = $2
+          print "DEBUG:   start_str=" start_str " end_str=" end_str > "/dev/stderr"
 
-        # Verify we have valid unit suffixes
-        print "DEBUG:   Checking start_str=" start_str " end_str=" end_str > "/dev/stderr"
-        if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
-          print "DEBUG:   FAILED unit suffix check" > "/dev/stderr"
+          # Verify we have valid unit suffixes
+          if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
+            print "DEBUG:   FAILED unit suffix check" > "/dev/stderr"
+            next
+          }
+          print "DEBUG:   PASSED unit suffix check" > "/dev/stderr"
+
+          # Convert start to MB
+          if (start_str ~ /GB$/) {
+            start_mb = substr(start_str, 1, length(start_str)-2) * 1024
+          } else if (start_str ~ /MB$/) {
+            start_mb = substr(start_str, 1, length(start_str)-2)
+          } else if (start_str ~ /kB$/) {
+            start_mb = substr(start_str, 1, length(start_str)-2) / 1024
+          } else if (start_str ~ /B$/) {
+            start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
+          } else {
+            print "DEBUG:   FAILED to convert start_str unit" > "/dev/stderr"
+            next
+          }
+
+          # Convert end to MB
+          if (end_str ~ /GB$/) {
+            end_mb = substr(end_str, 1, length(end_str)-2) * 1024
+          } else if (end_str ~ /MB$/) {
+            end_mb = substr(end_str, 1, length(end_str)-2)
+          } else if (end_str ~ /kB$/) {
+            end_mb = substr(end_str, 1, length(end_str)-2) / 1024
+          } else if (end_str ~ /B$/) {
+            end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
+          } else {
+            print "DEBUG:   FAILED to convert end_str unit" > "/dev/stderr"
+            next
+          }
+
+          size_mb = int(end_mb - start_mb)
+          print "DEBUG:   Outputting free space: " disk "|free|" start_mb "|" end_mb "|" size_mb "|free" > "/dev/stderr"
+          printf "%s|free|%.0f|%.0f|%d|free\n", disk, start_mb, end_mb, size_mb
           next
         }
-        print "DEBUG:   PASSED unit suffix check" > "/dev/stderr"
-
-        # Convert start to MB
-        if (start_str ~ /GB$/) {
-          start_mb = substr(start_str, 1, length(start_str)-2) * 1024
-        } else if (start_str ~ /MB$/) {
-          start_mb = substr(start_str, 1, length(start_str)-2)
-        } else if (start_str ~ /kB$/) {
-          start_mb = substr(start_str, 1, length(start_str)-2) / 1024
-        } else if (start_str ~ /B$/) {
-          start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
-        } else {
-          print "DEBUG:   FAILED to convert start_str unit" > "/dev/stderr"
-          next
-        }
-
-        # Convert end to MB
-        if (end_str ~ /GB$/) {
-          end_mb = substr(end_str, 1, length(end_str)-2) * 1024
-        } else if (end_str ~ /MB$/) {
-          end_mb = substr(end_str, 1, length(end_str)-2)
-        } else if (end_str ~ /kB$/) {
-          end_mb = substr(end_str, 1, length(end_str)-2) / 1024
-        } else if (end_str ~ /B$/) {
-          end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
-        } else {
-          print "DEBUG:   FAILED to convert end_str unit" > "/dev/stderr"
-          next
-        }
-
-        size_mb = int(end_mb - start_mb)
-        print "DEBUG:   Outputting: " disk "|free|" start_mb "|" end_mb "|" size_mb "|free" > "/dev/stderr"
-        printf "%s|free|%.0f|%.0f|%d|free\n", disk, start_mb, end_mb, size_mb
-        next
       }
     ' >> "$temp_file"
   done <<< "$disks"
