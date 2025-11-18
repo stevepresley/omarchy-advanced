@@ -136,10 +136,14 @@ build_unified_mapfile() {
 
           # Verify we have valid unit suffixes
           if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
-            print "DEBUG AWK:   FAILED unit suffix check" > "/dev/stderr"
+            if (debug == "true") {
+              print "DEBUG AWK:   FAILED unit suffix check" > "/dev/stderr"
+            }
             next
           }
-          print "DEBUG AWK:   PASSED unit suffix check" > "/dev/stderr"
+          if (debug == "true") {
+            print "DEBUG AWK:   PASSED unit suffix check" > "/dev/stderr"
+          }
 
           # Convert start to MB
           if (start_str ~ /GB$/) {
