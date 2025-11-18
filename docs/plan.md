@@ -49,6 +49,11 @@ STOP READING HERE UNTIL THIS FEATURE WORK IS COMPLETE, or the user tells you to 
 
 **Current Task**: Add command-line debug flag (default false) to show/hide verbose debug output
 
+**Progress**:
+- ✅ Added DEBUG parameter and debug_echo() helper function
+- ⏳ Converting all `echo "DEBUG:..." >&2` statements to use `debug_echo()` function
+- Testing debug flag functionality after conversions complete
+
 ---
 
 ## PREVIOUS STATE - SESSION 2025-11-05 (COMPLETED)
