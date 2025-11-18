@@ -205,22 +205,20 @@ display_merged_map() {
 
 # === MAIN ===
 
-declare -a partitions_map
-declare -a freespace_map
-declare -a merged_map
+declare -a unified_map
+declare -a sorted_map
 
-build_partitions_mapfile partitions_map
-build_freespace_mapfile freespace_map
-build_merged_mapfile partitions_map freespace_map merged_map
+build_unified_mapfile unified_map
+sort_mapfile unified_map sorted_map
 
-display_merged_map merged_map
+display_merged_map sorted_map
 
 echo ""
-echo "Total entries in merged map: ${#merged_map[@]}"
+echo "Total entries in sorted map: ${#sorted_map[@]}"
 echo ""
-if [[ ${#merged_map[@]} -gt 0 ]]; then
+if [[ ${#sorted_map[@]} -gt 0 ]]; then
   echo "Mapfile structure (disk|label|start_mb|end_mb|size_mb|type):"
-  for entry in "${merged_map[@]}"; do
+  for entry in "${sorted_map[@]}"; do
     echo "  $entry"
   done
 fi
