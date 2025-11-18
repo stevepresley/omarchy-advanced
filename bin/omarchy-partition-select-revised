@@ -39,16 +39,41 @@ build_unified_mapfile() {
     # Free space lines: start with whitespace, contain "Free Space" text
     echo "$parted_output" | awk -v disk="$disk" '
       # Skip header/footer lines and empty lines
-      /^[[:space:]]*$/ { next }
-      /^Number/ { next }
-      /^Disk / { next }
-      /^Sector/ { next }
-      /^Partition Table/ { next }
-      /^Disk Flags/ { next }
-      /^Model:/ { next }
+      /^[[:space:]]*$/ {
+        print "DEBUG: Skipping empty line" > "/dev/stderr"
+        next
+      }
+      /^Number/ {
+        print "DEBUG: Skipping Number header" > "/dev/stderr"
+        next
+      }
+      /^Disk / {
+        print "DEBUG: Skipping Disk header" > "/dev/stderr"
+        next
+      }
+      /^Sector/ {
+        print "DEBUG: Skipping Sector header" > "/dev/stderr"
+        next
+      }
+      /^Partition Table/ {
+        print "DEBUG: Skipping Partition Table header" > "/dev/stderr"
+        next
+      }
+      /^Disk Flags/ {
+        print "DEBUG: Skipping Disk Flags header" > "/dev/stderr"
+        next
+      }
+      /^Model:/ {
+        print "DEBUG: Skipping Model header" > "/dev/stderr"
+        next
+      }
 
       # Match partition lines: "Number  Start   End     Size    ..."
       /^[[:space:]]*[0-9]+[[:space:]]+/ {
+        print "DEBUG: Found partition line: " $0 > "/dev/stderr"
+        print "DEBUG:   Field count: " NF > "/dev/stderr"
+        print "DEBUG:   $1=" $1 " $2=" $2 " $3=" $3 " $4=" $4 > "/dev/stderr"
+
         # Partition line: extract fields
         # $1=number, $2=start, $3=end, $4=size, remaining=type/filesystem/flags
         start_str = $2
