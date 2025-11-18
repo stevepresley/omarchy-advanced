@@ -130,7 +130,9 @@ build_unified_mapfile() {
           # End is third token
           end_str = $3
 
-          print "DEBUG AWK:   partition_num=" partition_num " start_str=" start_str " end_str=" end_str > "/dev/stderr"
+          if (debug == "true") {
+            print "DEBUG AWK:   partition_num=" partition_num " start_str=" start_str " end_str=" end_str > "/dev/stderr"
+          }
 
           # Verify we have valid unit suffixes
           if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
