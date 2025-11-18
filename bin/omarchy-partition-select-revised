@@ -26,8 +26,8 @@ build_unified_mapfile() {
 
   echo "DEBUG: [$(date '+%Y-%m-%d %H:%M:%S')] Starting build_unified_mapfile" >&2
 
-  # Get all disk names only - match any block device that is a whole disk (no partition number at end)
-  disks=$(lsblk -nd -o NAME 2>/dev/null | grep -v '[0-9]$' || true)
+  # Get all disk names only - exclude loop devices (major 7) and sr/cd-rom (major 11)
+  disks=$(lsblk -e7,11 -nd -o NAME 2>/dev/null || true)
 
   echo "DEBUG: Found disks: '$disks'" >&2
   echo "DEBUG: Disk list line count: $(echo "$disks" | wc -l)" >&2
