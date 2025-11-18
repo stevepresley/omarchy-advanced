@@ -33,7 +33,7 @@ build_partitions_mapfile() {
     select(.type == "disk") as $disk |
     (.children[]? // empty) |
     select(.type == "part") |
-    "\($disk.name)|\(.name)|\(.start // 0)|\(.start // 0 + .size)|\(.size)"
+    "\($disk.name)|\(.name)|\(.start // 0)|\((.start // 0) + .size)|\(.size)"
   ' > "$temp_file"
 
   # Read from temp file and populate array
