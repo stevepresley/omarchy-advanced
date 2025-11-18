@@ -84,6 +84,7 @@ deploy_partition_selection() {
 
   # Copy all files (reuses SSH session, no password needed)
   scp $SSH_OPTS -q bin/omarchy-partition-select "$SSH_USER@$VM_IP:/root/omarchy/bin/omarchy-partition-select"
+  scp $SSH_OPTS -q bin/omarchy-partition-select-revised "$SSH_USER@$VM_IP:/root/omarchy/bin/omarchy-partition-select-revised"
   scp $SSH_OPTS -q ../omarchy-advanced-iso/configs/airootfs/root/configurator "$SSH_USER@$VM_IP:/root/configurator"
   scp $SSH_OPTS -q ./scripts/setup-partition-test-disk.sh "$SSH_USER@$VM_IP:/root/omarchy/scripts/setup-partition-test-disk.sh"
   echo "✓ Files copied to VM"

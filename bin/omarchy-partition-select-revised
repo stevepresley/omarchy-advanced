@@ -1,0 +1,194 @@
+#!/bin/bash
+
+# Revised partition selector using structured mapfile approach
+# 1. Get existing partitions from lsblk with positions
+# 2. Get free space regions from parted
+# 3. Merge and order them logically by disk and position
+
+set -euo pipefail
+
+if [[ -z "${OMARCHY_PATH:-}" ]]; then
+  export OMARCHY_PATH="/root/omarchy"
+fi
+
+source "$OMARCHY_PATH/install/helpers/presentation.sh"
+
+# === BUILD MAPFILE #1: EXISTING PARTITIONS ===
+# Structure: disk|partition|start_mb|end_mb|size_mb|type
+
+build_partitions_mapfile() {
+  local -n result=$1
+  local lsblk_json
+  local temp_file
+
+  result=()
+  temp_file=$(mktemp)
+
+  # Get all block devices and their partitions
+  lsblk_json=$(lsblk -J -b 2>/dev/null || echo '{"blockdevices":[]}')
+
+  # Parse JSON and write to temp file to avoid subshell issues
+  echo "$lsblk_json" | jq -r '
+    .blockdevices[] |
+    select(.type == "disk") as $disk |
+    (.children[]? // empty) |
+    select(.type == "part") |
+    "\($disk.name)|\(.name)|\(.start // 0)|\(.start // 0 + .size)|\(.size)"
+  ' > "$temp_file"
+
+  # Read from temp file and populate array
+  while IFS='|' read -r disk partition start_bytes end_bytes size_bytes; do
+    # Convert bytes to MB (divide by 1048576)
+    local start_mb=$((start_bytes / 1048576))
+    local end_mb=$((end_bytes / 1048576))
+    local size_mb=$((size_bytes / 1048576))
+
+    result+=("$disk|$partition|$start_mb|$end_mb|$size_mb|part")
+  done < "$temp_file"
+
+  rm -f "$temp_file"
+}
+
+# === BUILD MAPFILE #2: FREE SPACE REGIONS ===
+# Structure: disk|region_label|start_mb|end_mb|size_mb|type
+
+build_freespace_mapfile() {
+  local -n result=$1
+  local disks
+  local temp_file
+
+  result=()
+  temp_file=$(mktemp)
+
+  # Get all disks
+  disks=$(lsblk -nd -o NAME 2>/dev/null | grep -E '^[a-z]+d$' || true)
+
+  while read -r disk; do
+    [[ -z "$disk" ]] && continue
+
+    # Get free space regions from parted
+    local parted_output
+    parted_output=$(parted "/dev/$disk" print free 2>/dev/null || echo "")
+
+    # Parse parted output and write to temp file
+    echo "$parted_output" | awk -v disk="$disk" '
+      /Free Space/ {
+        start_str = $2
+        end_str = $3
+
+        # Convert parted format to MB
+        if (start_str ~ /kB$/) {
+          start_mb = substr(start_str, 1, length(start_str)-2) / 1024
+        } else if (start_str ~ /MB$/) {
+          start_mb = substr(start_str, 1, length(start_str)-2)
+        } else if (start_str ~ /GB$/) {
+          start_mb = substr(start_str, 1, length(start_str)-2) * 1024
+        } else {
+          next
+        }
+
+        if (end_str ~ /kB$/) {
+          end_mb = substr(end_str, 1, length(end_str)-2) / 1024
+        } else if (end_str ~ /MB$/) {
+          end_mb = substr(end_str, 1, length(end_str)-2)
+        } else if (end_str ~ /GB$/) {
+          end_mb = substr(end_str, 1, length(end_str)-2) * 1024
+        } else {
+          next
+        }
+
+        size_mb = int(end_mb - start_mb)
+        printf "%s|free|%.0f|%.0f|%d\n", disk, start_mb, end_mb, size_mb
+      }
+    ' >> "$temp_file"
+  done <<< "$disks"
+
+  # Read from temp file and populate array
+  while IFS='|' read -r disk label start end size; do
+    result+=("$disk|$label|$start|$end|$size|free")
+  done < "$temp_file"
+
+  rm -f "$temp_file"
+}
+
+# === BUILD MAPFILE #3: MERGED AND ORDERED ===
+
+build_merged_mapfile() {
+  local -n partitions=$1
+  local -n freespace=$2
+  local -n result=$3
+  local temp_file
+
+  result=()
+  temp_file=$(mktemp)
+
+  # Write partitions to temp file
+  for entry in "${partitions[@]}"; do
+    echo "$entry" >> "$temp_file"
+  done
+
+  # Write freespace to temp file
+  for entry in "${freespace[@]}"; do
+    echo "$entry" >> "$temp_file"
+  done
+
+  # Sort the combined entries and read into array
+  # Sort by: disk name (field 1), then by start position (field 3 numerically)
+  sort -t'|' -k1,1 -k3,3n "$temp_file" | while IFS='|' read -r disk label start end size type; do
+    result+=("$disk|$label|$start|$end|$size|$type")
+  done
+
+  rm -f "$temp_file"
+}
+
+# === DISPLAY MERGED MAP ===
+
+display_merged_map() {
+  local -n merged=$1
+
+  echo "=== Disk Layout Map ==="
+  echo ""
+
+  if [[ ${#merged[@]} -eq 0 ]]; then
+    echo "No partitions or free space found"
+    return
+  fi
+
+  local current_disk=""
+  for entry in "${merged[@]}"; do
+    IFS='|' read -r disk label start end size type <<< "$entry"
+
+    # New disk header
+    if [[ "$disk" != "$current_disk" ]]; then
+      [[ -n "$current_disk" ]] && echo ""
+      echo "Disk: /dev/$disk"
+      echo "  Position (MB) | Label | Size (MB) | Type"
+      echo "  ============================================"
+      current_disk="$disk"
+    fi
+
+    printf "  %6s - %-6s | %-15s | %8s | %s\n" "$start" "$end" "$label" "$size" "$type"
+  done
+}
+
+# === MAIN ===
+
+declare -a partitions_map
+declare -a freespace_map
+declare -a merged_map
+
+build_partitions_mapfile partitions_map
+build_freespace_mapfile freespace_map
+build_merged_mapfile partitions_map freespace_map merged_map
+
+display_merged_map merged_map
+
+echo ""
+echo "Total entries in merged map: ${#merged_map[@]}"
+echo ""
+if [[ ${#merged_map[@]} -gt 0 ]]; then
+  echo "Mapfile structure (disk|label|start_mb|end_mb|size_mb|type):"
+  for entry in "${merged_map[@]}"; do
+    echo "  $entry"
+  done
+fi
