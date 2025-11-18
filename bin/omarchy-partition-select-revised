@@ -96,7 +96,9 @@ build_unified_mapfile() {
         next
       }
       /^Disk Flags/ {
-        print "DEBUG AWK: Skipping Disk Flags header" > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Skipping Disk Flags header" > "/dev/stderr"
+        }
         next
       }
       /^Model:/ {
