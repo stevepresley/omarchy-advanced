@@ -90,7 +90,9 @@ build_unified_mapfile() {
         next
       }
       /^Partition Table/ {
-        print "DEBUG AWK: Skipping Partition Table header" > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Skipping Partition Table header" > "/dev/stderr"
+        }
         next
       }
       /^Disk Flags/ {
