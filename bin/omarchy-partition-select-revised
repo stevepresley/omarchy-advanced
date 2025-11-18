@@ -253,7 +253,9 @@ build_unified_mapfile() {
       }
 
       END {
-        print "DEBUG AWK: Finished parsing disk " disk > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Finished parsing disk " disk > "/dev/stderr"
+        }
       }
     ' >> "$temp_file"
   done <<< "$disks"
