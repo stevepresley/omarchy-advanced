@@ -155,7 +155,9 @@ build_unified_mapfile() {
           } else if (start_str ~ /B$/) {
             start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
           } else {
-            print "DEBUG AWK:   FAILED to convert start_str unit" > "/dev/stderr"
+            if (debug == "true") {
+              print "DEBUG AWK:   FAILED to convert start_str unit" > "/dev/stderr"
+            }
             next
           }
 
@@ -169,13 +171,17 @@ build_unified_mapfile() {
           } else if (end_str ~ /B$/) {
             end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
           } else {
-            print "DEBUG AWK:   FAILED to convert end_str unit" > "/dev/stderr"
+            if (debug == "true") {
+              print "DEBUG AWK:   FAILED to convert end_str unit" > "/dev/stderr"
+            }
             next
           }
 
           size_mb = int(end_mb - start_mb)
           partition_name = disk partition_num
-          print "DEBUG AWK:   Outputting partition: " disk "|" partition_name "|" start_mb "|" end_mb "|" size_mb "|part" > "/dev/stderr"
+          if (debug == "true") {
+            print "DEBUG AWK:   Outputting partition: " disk "|" partition_name "|" start_mb "|" end_mb "|" size_mb "|part" > "/dev/stderr"
+          }
           printf "%s|%s|%.0f|%.0f|%d|part\n", disk, partition_name, start_mb, end_mb, size_mb
           next
         }
