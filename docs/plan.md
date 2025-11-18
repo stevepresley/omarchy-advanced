@@ -35,7 +35,23 @@ STOP READING HERE UNTIL THIS FEATURE WORK IS COMPLETE, or the user tells you to 
 
 ---
 
-## CURRENT STATE - SESSION 2025-11-05 (ONGOING)
+## CURRENT STATE - SESSION 2025-11-18 (ONGOING)
+
+### CRITICAL: omarchy-partition-select-revised Script Working
+
+**Status**: ✅ Script successfully extracts partitions and free space from parted output
+
+**Completed**:
+- Fixed disk detection to use `lsblk -e7,11` (excludes loop and sr devices)
+- Awk parsing now correctly handles partition lines with leading spaces
+- All 9 entries extracted correctly (partitions and free space from both /dev/sda and /dev/sdb)
+- Mapfile sorted by disk name and start position
+
+**Current Task**: Add command-line debug flag (default false) to show/hide verbose debug output
+
+---
+
+## PREVIOUS STATE - SESSION 2025-11-05 (COMPLETED)
 
 ### CRITICAL ISSUE: partition-selection formatting and architecture implementation
 
