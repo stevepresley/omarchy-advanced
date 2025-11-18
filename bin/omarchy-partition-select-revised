@@ -357,14 +357,15 @@ declare -a sorted_map
 build_unified_mapfile unified_map
 sort_mapfile unified_map sorted_map
 
-display_merged_map sorted_map
-
-echo ""
-echo "Total entries in sorted map: ${#sorted_map[@]}"
-echo ""
-if [[ ${#sorted_map[@]} -gt 0 ]]; then
-  echo "Mapfile structure (disk|label|start_mb|end_mb|size_mb|type):"
-  for entry in "${sorted_map[@]}"; do
-    echo "  $entry"
-  done
+# Conditional output based on mode flags
+if [[ "$DISPLAY" == "true" ]]; then
+  # Display mode: show mapfile layout
+  display_merged_map sorted_map
+elif [[ "$DEBUG" == "true" ]]; then
+  # Debug mode: show debug output + mapfile layout
+  display_merged_map sorted_map
+else
+  # Interactive menu mode: show gum choose menu (TBD)
+  echo "ERROR: Interactive gum menu mode not yet implemented" >&2
+  exit 1
 fi
