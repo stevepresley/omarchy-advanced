@@ -73,10 +73,18 @@ build_freespace_mapfile() {
     # Parse parted output and write to temp file
     echo "$parted_output" | awk -v disk="$disk" '
       /Free Space/ {
-        start_str = $2
-        end_str = $3
+        # Fields: blank number | Start | End | Size | Type | File system | Flags
+        # When line starts with blank/space, fields shift left
+        # $1=Start, $2=End, $3=Size, $4=Type ("Free"), $5=Space
+        start_str = $1
+        end_str = $2
 
-        # Convert parted format to MB
+        # Verify we got valid data
+        if (start_str !~ /[kMG]B$/ || end_str !~ /[kMG]B$/) {
+          next
+        }
+
+        # Convert start to MB
         if (start_str ~ /kB$/) {
           start_mb = substr(start_str, 1, length(start_str)-2) / 1024
         } else if (start_str ~ /MB$/) {
@@ -87,6 +95,7 @@ build_freespace_mapfile() {
           next
         }
 
+        # Convert end to MB
         if (end_str ~ /kB$/) {
           end_mb = substr(end_str, 1, length(end_str)-2) / 1024
         } else if (end_str ~ /MB$/) {
