@@ -113,11 +113,17 @@ Breakdown by section:
 5. **END block (1 statement)**:
    - Finished parsing debug (line 212)
 
-**Progress**:
-- ✅ Added DEBUG parameter and debug_echo() helper function
+**Progress (Session 2025-11-18 - COMPLETE)**:
+- ✅ Added DEBUG parameter and debug_echo() helper function (lines 18, 21-25)
 - ✅ Converted bash debug statements (lines 39-59) to use debug_echo()
-- ⏳ Converting awk debug statements to pass DEBUG variable and conditionally print
-- Testing debug flag functionality after conversions complete
+- ✅ All 24 awk debug statements wrapped with `if (debug == "true")` conditionals
+- ✅ Fixed bash-level temp file debug output (lines 265-268) to respect DEBUG flag
+- ✅ Verified: All debug output respects the DEBUG flag (true/false)
+
+**Testing Results**:
+- Running without argument or with `false`: NO debug output (only mapfile display)
+- Running with `true`: Full debug output from both bash and awk sections
+- Mapfile extraction: Working correctly in both modes (9 entries extracted)
 
 ---
 
