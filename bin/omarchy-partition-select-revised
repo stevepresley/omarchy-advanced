@@ -68,7 +68,9 @@ build_unified_mapfile() {
 
       # Skip header/footer lines and empty lines
       /^[[:space:]]*$/ {
-        print "DEBUG AWK: Skipping empty line" > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Skipping empty line" > "/dev/stderr"
+        }
         next
       }
       /^Number/ {
