@@ -188,20 +188,28 @@ build_unified_mapfile() {
 
         # Check if line contains "Free Space" (after trimming leading space)
         if ($0 ~ /Free Space/) {
-          print "DEBUG AWK: Found free space line: " line_copy > "/dev/stderr"
+          if (debug == "true") {
+            print "DEBUG AWK: Found free space line: " line_copy > "/dev/stderr"
+          }
 
           # Start is first token, end is second token
           start_str = $1
           end_str = $2
 
-          print "DEBUG AWK:   start_str=" start_str " end_str=" end_str > "/dev/stderr"
+          if (debug == "true") {
+            print "DEBUG AWK:   start_str=" start_str " end_str=" end_str > "/dev/stderr"
+          }
 
           # Verify we have valid unit suffixes
           if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
-            print "DEBUG AWK:   FAILED unit suffix check" > "/dev/stderr"
+            if (debug == "true") {
+              print "DEBUG AWK:   FAILED unit suffix check" > "/dev/stderr"
+            }
             next
           }
-          print "DEBUG AWK:   PASSED unit suffix check" > "/dev/stderr"
+          if (debug == "true") {
+            print "DEBUG AWK:   PASSED unit suffix check" > "/dev/stderr"
+          }
 
           # Convert start to MB
           if (start_str ~ /GB$/) {
@@ -213,7 +221,9 @@ build_unified_mapfile() {
           } else if (start_str ~ /B$/) {
             start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
           } else {
-            print "DEBUG AWK:   FAILED to convert start_str unit" > "/dev/stderr"
+            if (debug == "true") {
+              print "DEBUG AWK:   FAILED to convert start_str unit" > "/dev/stderr"
+            }
             next
           }
 
@@ -227,12 +237,16 @@ build_unified_mapfile() {
           } else if (end_str ~ /B$/) {
             end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
           } else {
-            print "DEBUG AWK:   FAILED to convert end_str unit" > "/dev/stderr"
+            if (debug == "true") {
+              print "DEBUG AWK:   FAILED to convert end_str unit" > "/dev/stderr"
+            }
             next
           }
 
           size_mb = int(end_mb - start_mb)
-          print "DEBUG AWK:   Outputting free space: " disk "|free|" start_mb "|" end_mb "|" size_mb "|free" > "/dev/stderr"
+          if (debug == "true") {
+            print "DEBUG AWK:   Outputting free space: " disk "|free|" start_mb "|" end_mb "|" size_mb "|free" > "/dev/stderr"
+          }
           printf "%s|free|%.0f|%.0f|%d|free\n", disk, start_mb, end_mb, size_mb
           next
         }
