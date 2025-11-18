@@ -102,7 +102,9 @@ build_unified_mapfile() {
         next
       }
       /^Model:/ {
-        print "DEBUG AWK: Skipping Model header" > "/dev/stderr"
+        if (debug == "true") {
+          print "DEBUG AWK: Skipping Model header" > "/dev/stderr"
+        }
         next
       }
 
