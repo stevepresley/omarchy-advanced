@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# Revised partition selector using structured mapfile approach
-# 1. Get existing partitions from lsblk with positions
-# 2. Get free space regions from parted
-# 3. Merge and order them logically by disk and position
+# Partition selector using parted as single source of truth
+# Parse 'parted disk print free' output to extract both partitions and free space regions
+# in correct order and with correct boundaries
 
 set -euo pipefail
 
@@ -13,46 +12,11 @@ fi
 
 source "$OMARCHY_PATH/install/helpers/presentation.sh"
 
-# === BUILD MAPFILE #1: EXISTING PARTITIONS ===
-# Structure: disk|partition|start_mb|end_mb|size_mb|type
+# === BUILD UNIFIED MAPFILE FROM PARTED OUTPUT ===
+# Structure: disk|label|start_mb|end_mb|size_mb|type
+# Extracts both partitions AND free space from single parted command per disk
 
-build_partitions_mapfile() {
-  local -n result=$1
-  local lsblk_json
-  local temp_file
-
-  result=()
-  temp_file=$(mktemp)
-
-  # Get all block devices and their partitions
-  lsblk_json=$(lsblk -J -b 2>/dev/null || echo '{"blockdevices":[]}')
-
-  # Parse JSON and write to temp file to avoid subshell issues
-  echo "$lsblk_json" | jq -r '
-    .blockdevices[] |
-    select(.type == "disk") as $disk |
-    (.children[]? // empty) |
-    select(.type == "part") |
-    "\($disk.name)|\(.name)|\(.start // 0)|\((.start // 0) + .size)|\(.size)"
-  ' > "$temp_file"
-
-  # Read from temp file and populate array
-  while IFS='|' read -r disk partition start_bytes end_bytes size_bytes; do
-    # Convert bytes to MB (divide by 1048576)
-    local start_mb=$((start_bytes / 1048576))
-    local end_mb=$((end_bytes / 1048576))
-    local size_mb=$((size_bytes / 1048576))
-
-    result+=("$disk|$partition|$start_mb|$end_mb|$size_mb|part")
-  done < "$temp_file"
-
-  rm -f "$temp_file"
-}
-
-# === BUILD MAPFILE #2: FREE SPACE REGIONS ===
-# Structure: disk|region_label|start_mb|end_mb|size_mb|type
-
-build_freespace_mapfile() {
+build_unified_mapfile() {
   local -n result=$1
   local disks
   local temp_file
@@ -60,26 +24,38 @@ build_freespace_mapfile() {
   result=()
   temp_file=$(mktemp)
 
-  # Get all disks
+  # Get all disk names only
   disks=$(lsblk -nd -o NAME 2>/dev/null | grep -E '^[a-z]+d$' || true)
 
   while read -r disk; do
     [[ -z "$disk" ]] && continue
 
-    # Get free space regions from parted
+    # Get BOTH partitions AND free space from single parted command
     local parted_output
     parted_output=$(sudo parted "/dev/$disk" print free 2>/dev/null || echo "")
 
-    # Parse parted output and write to temp file
+    # Parse parted output for both partition lines and free space lines
+    # Partition lines: have a number in first column
+    # Free space lines: start with whitespace, contain "Free Space" text
     echo "$parted_output" | awk -v disk="$disk" '
-      /Free Space/ {
-        # Fields: blank number | Start | End | Size | Type | File system | Flags
-        # When line starts with blank/space, fields shift left
-        # $1=Start, $2=End, $3=Size, $4=Type ("Free"), $5=Space
-        start_str = $1
-        end_str = $2
+      # Skip header/footer lines and empty lines
+      /^[[:space:]]*$/ { next }
+      /^Number/ { next }
+      /^Disk / { next }
+      /^Sector/ { next }
+      /^Partition Table/ { next }
+      /^Disk Flags/ { next }
+      /^Model:/ { next }
 
-        # Verify we got valid data (must end with B, kB, MB, or GB)
+      # Match partition lines: "Number  Start   End     Size    ..."
+      /^[[:space:]]*[0-9]+[[:space:]]+/ {
+        # Partition line: extract fields
+        # $1=number, $2=start, $3=end, $4=size, remaining=type/filesystem/flags
+        start_str = $2
+        end_str = $3
+        partition_num = $1
+
+        # Verify we have valid unit suffixes
         if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
           next
         }
@@ -92,7 +68,6 @@ build_freespace_mapfile() {
         } else if (start_str ~ /kB$/) {
           start_mb = substr(start_str, 1, length(start_str)-2) / 1024
         } else if (start_str ~ /B$/) {
-          # Bare bytes (e.g., "1024B")
           start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
         } else {
           next
@@ -106,21 +81,65 @@ build_freespace_mapfile() {
         } else if (end_str ~ /kB$/) {
           end_mb = substr(end_str, 1, length(end_str)-2) / 1024
         } else if (end_str ~ /B$/) {
-          # Bare bytes (e.g., "1024B")
           end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
         } else {
           next
         }
 
         size_mb = int(end_mb - start_mb)
-        printf "%s|free|%.0f|%.0f|%d\n", disk, start_mb, end_mb, size_mb
+        partition_name = disk partition_num
+        printf "%s|%s|%.0f|%.0f|%d|part\n", disk, partition_name, start_mb, end_mb, size_mb
+        next
+      }
+
+      # Match free space lines: whitespace at start AND contains "Free Space"
+      /^[[:space:]]+/ && /Free Space/ {
+        # Free space line: extract fields
+        # Format: "        start   end     size    Free Space"
+        start_str = $1
+        end_str = $2
+
+        # Verify we have valid unit suffixes
+        if (start_str !~ /[kMG]?B$/ || end_str !~ /[kMG]?B$/) {
+          next
+        }
+
+        # Convert start to MB
+        if (start_str ~ /GB$/) {
+          start_mb = substr(start_str, 1, length(start_str)-2) * 1024
+        } else if (start_str ~ /MB$/) {
+          start_mb = substr(start_str, 1, length(start_str)-2)
+        } else if (start_str ~ /kB$/) {
+          start_mb = substr(start_str, 1, length(start_str)-2) / 1024
+        } else if (start_str ~ /B$/) {
+          start_mb = substr(start_str, 1, length(start_str)-1) / 1048576
+        } else {
+          next
+        }
+
+        # Convert end to MB
+        if (end_str ~ /GB$/) {
+          end_mb = substr(end_str, 1, length(end_str)-2) * 1024
+        } else if (end_str ~ /MB$/) {
+          end_mb = substr(end_str, 1, length(end_str)-2)
+        } else if (end_str ~ /kB$/) {
+          end_mb = substr(end_str, 1, length(end_str)-2) / 1024
+        } else if (end_str ~ /B$/) {
+          end_mb = substr(end_str, 1, length(end_str)-1) / 1048576
+        } else {
+          next
+        }
+
+        size_mb = int(end_mb - start_mb)
+        printf "%s|free|%.0f|%.0f|%d|free\n", disk, start_mb, end_mb, size_mb
+        next
       }
     ' >> "$temp_file"
   done <<< "$disks"
 
   # Read from temp file and populate array
-  while IFS='|' read -r disk label start end size; do
-    result+=("$disk|$label|$start|$end|$size|free")
+  while IFS='|' read -r disk label start end size type; do
+    result+=("$disk|$label|$start|$end|$size|$type")
   done < "$temp_file"
 
   rm -f "$temp_file"
