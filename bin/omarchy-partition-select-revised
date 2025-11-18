@@ -117,28 +117,33 @@ build_merged_mapfile() {
   local -n partitions=$1
   local -n freespace=$2
   local -n result=$3
-  local temp_file
+  local temp_combined
+  local temp_sorted
 
   result=()
-  temp_file=$(mktemp)
+  temp_combined=$(mktemp)
+  temp_sorted=$(mktemp)
 
-  # Write partitions to temp file
+  # Write partitions to combined file
   for entry in "${partitions[@]}"; do
-    echo "$entry" >> "$temp_file"
+    echo "$entry" >> "$temp_combined"
   done
 
-  # Write freespace to temp file
+  # Write freespace to combined file
   for entry in "${freespace[@]}"; do
-    echo "$entry" >> "$temp_file"
+    echo "$entry" >> "$temp_combined"
   done
 
-  # Sort the combined entries and read into array
+  # Sort the combined entries to a separate file
   # Sort by: disk name (field 1), then by start position (field 3 numerically)
-  sort -t'|' -k1,1 -k3,3n "$temp_file" | while IFS='|' read -r disk label start end size type; do
-    result+=("$disk|$label|$start|$end|$size|$type")
-  done
+  sort -t'|' -k1,1 -k3,3n "$temp_combined" > "$temp_sorted"
 
-  rm -f "$temp_file"
+  # Read sorted file into array
+  while IFS='|' read -r disk label start end size type; do
+    result+=("$disk|$label|$start|$end|$size|$type")
+  done < "$temp_sorted"
+
+  rm -f "$temp_combined" "$temp_sorted"
 }
 
 # === DISPLAY MERGED MAP ===
