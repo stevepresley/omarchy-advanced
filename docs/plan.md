@@ -49,6 +49,30 @@ STOP READING HERE UNTIL THIS FEATURE WORK IS COMPLETE, or the user tells you to 
 
 **Current Task**: Add command-line debug flag (default false) to show/hide verbose debug output
 
+**IMPLEMENTATION IN PROGRESS (Session 2025-11-18)**:
+
+1. ✅ Added DEBUG parameter parsing: `DEBUG=${1:-false}`
+2. ✅ Created debug_echo() bash function to wrap debug output
+3. ✅ Converted bash debug statements (lines 39-59) to use debug_echo()
+4. ✅ Added `-v debug="$DEBUG"` parameter to awk command line (line 62)
+5. 🔄 CURRENT: Converting awk debug statements to respect debug variable
+   - BEGIN block: Wrapping print statements with `if (debug == "true")`
+   - Header-skipping rules (lines 68-95): Each rule's debug statement needs conditional
+   - Partition processing (lines 97-157): All debug statements in partition parsing need conditional
+   - Free space processing (lines 159-208): All debug statements in free space parsing need conditional
+   - END block: Single debug statement needs conditional
+
+**PATTERN TO APPLY**:
+Change: `print "MESSAGE" > "/dev/stderr"`
+To: `if (debug == "true") { print "MESSAGE" > "/dev/stderr" }`
+
+**SCOPE**: Approximately 30+ awk debug statements across the entire script
+
+**TEST REQUIREMENTS**:
+- Test with `/root/omarchy/bin/omarchy-partition-select-revised false` (no debug output)
+- Test with `/root/omarchy/bin/omarchy-partition-select-revised true` (full debug output)
+- Verify mapfile is still extracted correctly in both modes
+
 **Progress**:
 - ✅ Added DEBUG parameter and debug_echo() helper function
 - ✅ Converted bash debug statements (lines 39-59) to use debug_echo()
