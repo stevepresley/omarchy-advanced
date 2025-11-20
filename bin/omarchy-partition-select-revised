@@ -377,35 +377,31 @@ build_gum_options() {
   debug_echo "DEBUG: Building gum menu options from mapfile"
 
   local current_disk=""
-  local disk_entry=""
+  local last_disk=""
 
   for entry in "${merged[@]}"; do
     IFS='|' read -r disk label start end size type <<< "$entry"
 
-    # New disk section
+    # New disk section - add disk as selectable option
     if [[ "$disk" != "$current_disk" ]]; then
-      # Add disk entry if not first
-      if [[ -n "$disk_entry" ]]; then
-        options+=("$disk_entry")
-      fi
-
       current_disk="$disk"
-      disk_entry="/dev/$disk"
-      debug_echo "DEBUG: Adding disk option: $disk_entry"
+      last_disk="/dev/$disk"
+      # Disk entries are presented without tree prefix
+      options+=("$last_disk")
+      debug_echo "DEBUG: Added disk option: $last_disk"
     fi
 
-    # Add partition/free space entry
+    # Add partition/free space entry with tree prefix
+    # Format: tree_prefix device label (size MB) [boundaries/type]
     if [[ "$type" == "free" ]]; then
-      options+=("  └─ (free) $label ($size MB)")
+      # Free space entry stores boundaries for later processing
+      options+=("  └─ (free space) ($size MB) [DISK:$last_disk|START:$start|END:$end]")
     else
-      options+=("  ├─ $label ($size MB) [${start}-${end} MB] ($type)")
+      # Partition entry stores full path /dev/diskN
+      local part_path="/dev/${disk}1"  # This will need adjustment based on actual partition number
+      options+=("  ├─ $part_path ($label, $size MB) [${start}-${end} MB] ($type)")
     fi
   done
-
-  # Add final disk entry
-  if [[ -n "$disk_entry" ]]; then
-    options+=("$disk_entry")
-  fi
 
   debug_echo "DEBUG: Total menu options: ${#options[@]}"
 }
