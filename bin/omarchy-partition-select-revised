@@ -349,6 +349,67 @@ display_merged_map() {
   done
 }
 
+# === GUM CHOOSE INTEGRATION ===
+
+# Check for required dependencies
+if ! command -v gum >/dev/null 2>&1; then
+  echo "Error: gum is required for omarchy-partition-select-revised" >&2
+  exit 1
+fi
+
+if ! command -v lsblk >/dev/null 2>&1; then
+  echo "Error: lsblk is required for omarchy-partition-select-revised" >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq is required for omarchy-partition-select-revised" >&2
+  exit 1
+fi
+
+# Build gum menu options from the unified mapfile
+build_gum_options() {
+  local -n merged=$1
+  local -n options=$2
+
+  options=()
+
+  debug_echo "DEBUG: Building gum menu options from mapfile"
+
+  local current_disk=""
+  local disk_entry=""
+
+  for entry in "${merged[@]}"; do
+    IFS='|' read -r disk label start end size type <<< "$entry"
+
+    # New disk section
+    if [[ "$disk" != "$current_disk" ]]; then
+      # Add disk entry if not first
+      if [[ -n "$disk_entry" ]]; then
+        options+=("$disk_entry")
+      fi
+
+      current_disk="$disk"
+      disk_entry="/dev/$disk"
+      debug_echo "DEBUG: Adding disk option: $disk_entry"
+    fi
+
+    # Add partition/free space entry
+    if [[ "$type" == "free" ]]; then
+      options+=("  └─ (free) $label ($size MB)")
+    else
+      options+=("  ├─ $label ($size MB) [${start}-${end} MB] ($type)")
+    fi
+  done
+
+  # Add final disk entry
+  if [[ -n "$disk_entry" ]]; then
+    options+=("$disk_entry")
+  fi
+
+  debug_echo "DEBUG: Total menu options: ${#options[@]}"
+}
+
 # === MAIN ===
 
 declare -a unified_map
