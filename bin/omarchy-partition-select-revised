@@ -422,7 +422,47 @@ elif [[ "$DEBUG" == "true" ]]; then
   # Debug mode: show debug output + mapfile layout
   display_merged_map sorted_map
 else
-  # Interactive menu mode: show gum choose menu (TBD)
-  echo "ERROR: Interactive gum menu mode not yet implemented" >&2
-  exit 1
+  # Interactive menu mode: show gum choose menu
+  declare -a gum_options
+  build_gum_options sorted_map gum_options
+
+  if (( ${#gum_options[@]} == 0 )); then
+    echo "ERROR: No disks or partitions found" >&2
+    exit 1
+  fi
+
+  debug_echo "DEBUG: Launching gum choose menu with ${#gum_options[@]} options"
+
+  # Display gum menu and get user selection
+  selected=$("gum" "choose" "--header" "Select install target (disk or partition)" "${gum_options[@]}")
+
+  if [[ -z "$selected" ]]; then
+    echo "ERROR: No selection made" >&2
+    exit 1
+  fi
+
+  debug_echo "DEBUG: User selected: $selected"
+
+  # Extract device path from selection
+  # The regex matches /dev/diskN or /dev/diskNM patterns (N=number, M=number)
+  device=$(printf "%s\n" "$selected" | grep -oE '/dev/[a-z0-9]+' | tail -1)
+
+  if [[ -z "$device" ]]; then
+    echo "ERROR: Failed to extract device from selection: $selected" >&2
+    exit 1
+  fi
+
+  debug_echo "DEBUG: Extracted device: $device"
+
+  # Determine if this is a disk or partition selection
+  if [[ "$selected" =~ ^[[:space:]]*[├└] ]]; then
+    # Partition or free space selection (has tree prefix)
+    debug_echo "DEBUG: User selected partition/free space: $device"
+    # Future: implement partition layout preparation
+    echo "$device"
+  else
+    # Disk selection (no tree prefix)
+    debug_echo "DEBUG: User selected disk: $device"
+    echo "$device"
+  fi
 fi
