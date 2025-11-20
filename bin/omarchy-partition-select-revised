@@ -393,13 +393,13 @@ build_gum_options() {
 
     # Add partition/free space entry with tree prefix
     # Format: tree_prefix device label (size MB) [boundaries/type]
-    if [[ "$type" == "free" ]]; then
-      # Free space entry stores boundaries for later processing
+    if [[ "$type" == "free" ]] && (( size >= 2048 )); then
+      # Free space entry stores boundaries for later processing (only if >= 2GB)
       options+=("  └─ (free space) ($size MB) [DISK:$last_disk|START:$start|END:$end]")
-    else
+    elif [[ "$type" != "free" ]]; then
       # Partition entry stores full path /dev/diskN
       local part_path="/dev/${disk}1"  # This will need adjustment based on actual partition number
-      options+=("  ├─ $part_path ($label, $size MB) [${start}-${end} MB] ($type)")
+      options+=("  ├─ $part_path ($label, $size MB) [${start}-${end} MB]")
     fi
   done
 
