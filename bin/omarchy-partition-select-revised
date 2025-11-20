@@ -399,7 +399,14 @@ build_gum_options() {
     elif [[ "$type" != "free" ]]; then
       # Partition entry stores full path /dev/diskN
       local part_path="/dev/${disk}1"  # This will need adjustment based on actual partition number
-      options+=("  ├─ $part_path ($label, $size MB) [${start}-${end} MB]")
+      local warning=""
+
+      # Add 16GB minimum size warning if partition is too small
+      if (( size < 16384 )); then
+        warning=" \033[31m[TOO SMALL - 16GB minimum required]\033[0m"
+      fi
+
+      options+=("  ├─ $part_path ($label, $size MB) [${start}-${end} MB]$warning")
     fi
   done
 
