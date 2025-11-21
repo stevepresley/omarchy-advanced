@@ -564,11 +564,30 @@ rebuild_options_menu() {
 
   # Append free space regions to options array with proper formatting
   # For now, append at end - this could be enhanced to intersperse by disk
+  # Filter free space regions < 2GB (2048 MB) - too small to be useful
+  local min_free_space_mb=2048
   for free_entry in "${free_space_options[@]}"; do
     IFS='|' read -r disk_path free_start free_end free_size <<<"$free_entry"
-    # Format: "  └─ (free space) SIZE" - using tree prefix like partitions
-    # Store disk info in the string for later extraction during selection
-    options+=("  └─ (free space) ($free_size) [START:$free_start|END:$free_end|DISK:$disk_path]")
+
+    # Parse size from string like "25.6 GiB" or "1024 MiB"
+    local free_size_mb=0
+    if [[ "$free_size" =~ ([0-9.]+)[[:space:]]*(GiB|GB|G) ]]; then
+      # Convert GiB/GB/G to MB
+      free_size_mb=$(printf "%.0f" "$(echo "${BASH_REMATCH[1]} * 1024" | bc)")
+    elif [[ "$free_size" =~ ([0-9.]+)[[:space:]]*(MiB|MB|M) ]]; then
+      # Already in MB
+      free_size_mb=$(printf "%.0f" "${BASH_REMATCH[1]}")
+    fi
+
+    # Only add free space regions that are >= 2GB (2048 MB)
+    if (( free_size_mb >= min_free_space_mb )); then
+      # Format: "  └─ (free space) SIZE" - using tree prefix like partitions
+      # Store disk info in the string for later extraction during selection
+      options+=("  └─ (free space) ($free_size) [START:$free_start|END:$free_end|DISK:$disk_path]")
+      log_debug "Added free space to menu: $free_size ($free_size_mb MB)"
+    else
+      log_debug "Skipped free space region < 2GB: $free_size ($free_size_mb MB)"
+    fi
   done
 }
 
