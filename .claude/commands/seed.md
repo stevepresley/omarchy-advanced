@@ -98,27 +98,28 @@ This is not a suggestion. This is survival.
 
 ---
 
-## 🔴 CRITICAL: BEFORE ANY FILE MODIFICATION - GIT COMMIT WORKFLOW
+## 🔴 CRITICAL: BEFORE ANY FILE MODIFICATION - AUTO-COMMIT HOOK WORKFLOW
 
-**⚠️ DO NOT COMMIT MANUALLY - USER HANDLES ALL GIT OPERATIONS ⚠️**
+**AUTO-COMMIT HOOK HANDLES GIT OPERATIONS AUTOMATICALLY**
 
-**YOUR ROLE:**
-1. Make code edits using Edit tool
-2. **STOP and wait for user to test on the ISO**
-3. User runs `git add -A && git commit` after testing confirms changes work
-4. User handles all git operations (push, commit, backup)
+**YOUR WORKFLOW:**
+1. Research/read existing code first
+2. Make code edits using Edit tool
+3. **STOP** - auto-commit hook automatically runs after Edit tool
+4. Hook auto-commits changes: `git add -A && git commit -m "..."`
+5. Hook auto-runs backup if gitignored files were modified
+6. Hook injects TODO to update documentation
+7. Update relevant documentation file (plan.md or feature docs)
+8. **STOP and wait for user to test on ISO**
 
-**WHY YOU DON'T COMMIT:**
-- Code changes must be verified on the running ISO BEFORE committing to git history
-- User tests manually (you cannot test interactively)
-- User commits with full understanding of what changed and why
-- This prevents committing broken code to git history
+**DO NOT MANUALLY RUN:**
+- `git add`
+- `git commit`
+- `./scripts/backup-local.sh`
 
-**EXCEPTION**: If user explicitly asks you to commit (e.g., "commit this change now"), THEN run git commit
-- Even then, you STOP after commit and wait for user feedback
-- Do NOT assume commit means "continue with next task"
+These are all handled automatically by the hook.
 
-**For the complete workflow, see CLAUDE.local.md lines 1054-1068**
+**For the complete workflow details, see .claude/COMPLIANCE_CHECKLIST.md**
 
 ---
 
