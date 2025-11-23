@@ -398,7 +398,8 @@ build_gum_options() {
       options+=("  └─ (free space) ($size MB) [DISK:$last_disk|START:$start|END:$end]")
     elif [[ "$type" != "free" ]]; then
       # Partition entry stores full path /dev/diskN
-      local part_path="/dev/${disk}1"  # This will need adjustment based on actual partition number
+      # Extract full device path from label (e.g., "sda1" -> "/dev/sda1")
+      local part_path="/dev/${label}"
       local warning=""
       # Check if partition is < 16GB and add warning
       if (( size < 16384 )); then
