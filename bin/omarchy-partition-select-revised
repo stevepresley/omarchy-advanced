@@ -378,9 +378,19 @@ build_gum_options() {
 
   local current_disk=""
   local last_disk=""
+  local i=0
+  local next_disk=""
 
-  for entry in "${merged[@]}"; do
+  for i in "${!merged[@]}"; do
+    entry="${merged[$i]}"
     IFS='|' read -r disk label start end size type <<< "$entry"
+
+    # Look ahead to see if next entry is a different disk
+    if (( i + 1 < ${#merged[@]} )); then
+      IFS='|' read -r next_disk _ _ _ _ _ <<< "${merged[$((i+1))]}"
+    else
+      next_disk=""  # Last entry
+    fi
 
     # New disk section - add disk as selectable option
     if [[ "$disk" != "$current_disk" ]]; then
@@ -391,11 +401,17 @@ build_gum_options() {
       debug_echo "DEBUG: Added disk option: $last_disk"
     fi
 
+    # Determine tree prefix: └─ if this is the last entry for this disk, ├─ otherwise
+    local tree_prefix="├─"
+    if [[ "$next_disk" != "$disk" ]] || [[ -z "$next_disk" ]]; then
+      tree_prefix="└─"
+    fi
+
     # Add partition/free space entry with tree prefix
     # Format: tree_prefix device label (size MB) [boundaries/type]
     if [[ "$type" == "free" ]] && (( size >= 2048 )); then
       # Free space entry stores boundaries for later processing (only if >= 2GB)
-      options+=("  └─ (free space) ($size MB) [DISK:$last_disk|START:$start|END:$end]")
+      options+=("  $tree_prefix (free space) ($size MB) [DISK:$last_disk|START:$start|END:$end]")
     elif [[ "$type" != "free" ]]; then
       # Partition entry stores full path /dev/diskN
       # Extract full device path from label (e.g., "sda1" -> "/dev/sda1")
@@ -405,7 +421,7 @@ build_gum_options() {
       if (( size < 16384 )); then
         warning=$(printf ' \033[31m[TOO SMALL - 16GB minimum required]\033[0m')
       fi
-      options+=("  ├─ $part_path ($label, $size MB) [${start}-${end} MB]$warning")
+      options+=("  $tree_prefix $part_path ($label, $size MB) [${start}-${end} MB]$warning")
     fi
   done
 
