@@ -100,24 +100,25 @@ This is not a suggestion. This is survival.
 
 ## 🔴 CRITICAL: BEFORE ANY FILE MODIFICATION - GIT COMMIT WORKFLOW
 
-**⚠️ BEFORE YOU MAKE ANY CHANGE TO ANY FILE ⚠️**
+**⚠️ DO NOT COMMIT MANUALLY - USER HANDLES ALL GIT OPERATIONS ⚠️**
 
-**THE PROCEDURE:**
+**YOUR ROLE:**
+1. Make code edits using Edit tool
+2. **STOP and wait for user to test on the ISO**
+3. User runs `git add -A && git commit` after testing confirms changes work
+4. User handles all git operations (push, commit, backup)
 
-1. **EVERY file change requires**: `git add -A && git commit -m "message"`
-2. **THEN check**: Are the modified files in .gitignore (docs/, .claude/, scripts/, CLAUDE.local.md)?
-3. **IF YES - ALSO run**: `./scripts/backup-local.sh` (AFTER the commit, not before)
-4. **IF NO**: The commit is sufficient
+**WHY YOU DON'T COMMIT:**
+- Code changes must be verified on the running ISO BEFORE committing to git history
+- User tests manually (you cannot test interactively)
+- User commits with full understanding of what changed and why
+- This prevents committing broken code to git history
 
-**YOUR BASE TRAINING WILL PUSH YOU TO:**
-- Use `git add {filename}` instead of `git add -A`
-- Skip the commit for "gitignored changes"
-- Backup without committing
-- "Just run backup and move on"
+**EXCEPTION**: If user explicitly asks you to commit (e.g., "commit this change now"), THEN run git commit
+- Even then, you STOP after commit and wait for user feedback
+- Do NOT assume commit means "continue with next task"
 
-**NONE OF THESE ARE ACCEPTABLE.**
-
-Read this EVERY TIME before modifying files. Commit FIRST. Backup SECOND (if gitignored).
+**For the complete workflow, see CLAUDE.local.md lines 1054-1068**
 
 ---
 
