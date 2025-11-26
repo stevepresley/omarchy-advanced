@@ -13,6 +13,13 @@ if [[ -z "${OMARCHY_PATH:-}" ]]; then
 fi
 
 source "$OMARCHY_PATH/install/helpers/presentation.sh"
+error_message=""
+CONFIG_LOG="/tmp/partition-select.log"
+touch "$CONFIG_LOG" 2>/dev/null || true
+
+log_debug() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$CONFIG_LOG"
+}
 
 # Parse command line arguments
 # Usage: omarchy-partition-select [debug|display]
@@ -465,13 +472,16 @@ else
 
     # Display gum menu with error message in header if validation failed
     # Error message is embedded in header to display above menu options
-    header_text="Select install target (disk or partition)"
-    if [[ -n "$error_message" ]]; then
-      header_text="$error_message
-$header_text"
-    fi
+    #header_text="Select install target (disk or partition)"
+    #if [[ -n "$error_message" ]]; then
+    #  header_text="$error_message $header_text"
+    #fi
 
-    selected=$("gum" "choose" "--header" "$header_text" "--padding" "0 2" "${gum_options[@]}")
+    #selected=$("gum" "choose" "--header" "$header_text" "--padding" "0 2" "${gum_options[@]}")
+
+    header_text="Select install target (disk or partition)"
+    selected="$("gum" "choose" "--header" "$error_message
+$header_text" "--padding" "0 $PADDING_LEFT" "${gum_options[@]}")"
 
     if [[ -z "$selected" ]]; then
       echo "ERROR: No selection made" >&2
