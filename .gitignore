@@ -1,7 +1,8 @@
 # Claude Code configuration and documentation
 .claude/
-claude.md
-claude.local.md
+.claude_old/
+claude.*
+
 # Continue.dev configurations and documentation
 .continue/
 
