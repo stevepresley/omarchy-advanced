@@ -488,9 +488,23 @@ else
     if [[ "$selected" =~ ^[[:space:]]*[├└] ]]; then
       # Partition or free space selection (has tree prefix)
       debug_echo "DEBUG: User selected partition/free space: $device"
-      # Gap #3: Size validation will be added in next step
-      # For now, break loop to proceed (no validation yet)
-      break
+
+      # Gap #3: Validate partition size >= 16GB
+      partition_size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null || echo "0")
+      min_size_bytes=$((16 * 1024 * 1024 * 1024))
+
+      debug_echo "DEBUG: Partition size check: $partition_size_bytes bytes vs minimum $min_size_bytes bytes"
+
+      if (( partition_size_bytes >= min_size_bytes )); then
+        # Size is valid, break loop to proceed
+        debug_echo "DEBUG: Partition size valid, breaking loop"
+        break
+      else
+        # Size is invalid, set error and continue loop for re-selection
+        error_message="ERROR: Selected partition is too small. Minimum size required: 16GB"
+        debug_echo "DEBUG: $error_message (actual: $((partition_size_bytes / 1024 / 1024 / 1024))GB)"
+        continue
+      fi
     else
       # Disk selection (no tree prefix)
       debug_echo "DEBUG: User selected disk: $device"
