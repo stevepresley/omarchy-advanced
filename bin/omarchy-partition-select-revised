@@ -508,8 +508,8 @@ $header_text"
         break
       else
         # Size is invalid, set error and continue loop for re-selection
-        error_message="ERROR: Selected partition is too small. Minimum size required: 16GB"
-        debug_echo "DEBUG: $error_message (actual: $((partition_size_bytes / 1024 / 1024 / 1024))GB)"
+        error_message="ERROR: Selected partition is too small. Minimum size required: 16GB (actual: $((partition_size_bytes / 1024 / 1024 / 1024))GB)"
+        debug_echo "DEBUG: $error_message"
         continue
       fi
     else
