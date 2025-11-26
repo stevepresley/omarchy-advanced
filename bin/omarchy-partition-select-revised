@@ -465,7 +465,7 @@ else
 
     # Display gum menu with error message in header if validation failed
     # Error message is embedded in header to display above menu options with gum formatting
-    local header_text="Select install target (disk or partition)"
+    header_text="Select install target (disk or partition)"
     if [[ -n "$error_message" ]]; then
       formatted_error=$("gum" "style" "--bold" "--foreground" "1" "$error_message")
       header_text="$formatted_error
