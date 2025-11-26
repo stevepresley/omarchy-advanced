@@ -390,17 +390,12 @@ build_gum_options() {
       continue
     fi
 
-    # Look ahead to see if next visible entry is a different disk
-    # (skip hidden < 2GB entries when looking ahead)
-    next_disk=""
-    for (( j = i + 1; j < ${#merged[@]}; j++ )); do
-      IFS='|' read -r next_disk _ _ _ _ next_type <<< "${merged[$j]}"
-      # Skip hidden < 2GB entries in lookahead
-      if [[ "$next_type" == "free" ]] && (( $(echo "${merged[$j]}" | cut -d'|' -f5) < 2048 )); then
-        continue
-      fi
-      break
-    done
+    # Look ahead to see if next entry is a different disk
+    if (( i + 1 < ${#merged[@]} )); then
+      IFS='|' read -r next_disk _ _ _ _ _ <<< "${merged[$((i+1))]}"
+    else
+      next_disk=""  # Last entry
+    fi
 
     # New disk section - add disk as selectable option
     if [[ "$disk" != "$current_disk" ]]; then
@@ -411,7 +406,7 @@ build_gum_options() {
       debug_echo "DEBUG: Added disk option: $last_disk"
     fi
 
-    # Determine tree prefix: └─ if this is the last visible entry for this disk, ├─ otherwise
+    # Determine tree prefix: └─ if this is the last entry for this disk, ├─ otherwise
     local tree_prefix="├─"
     if [[ "$next_disk" != "$disk" ]] || [[ -z "$next_disk" ]]; then
       tree_prefix="└─"
