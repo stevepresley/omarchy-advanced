@@ -394,11 +394,6 @@ build_gum_options() {
     entry="${merged[$i]}"
     IFS='|' read -r disk label start end size type <<< "$entry"
 
-    # Skip < 2GB free space entries entirely - they won't be displayed
-    if [[ "$type" == "free" ]] && (( size < 2048 )); then
-      continue
-    fi
-
     # Look ahead to see if next entry is a different disk
     if (( i + 1 < ${#merged[@]} )); then
       IFS='|' read -r next_disk _ _ _ _ _ <<< "${merged[$((i+1))]}"
