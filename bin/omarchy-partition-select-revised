@@ -262,6 +262,15 @@ build_unified_mapfile() {
           }
 
           size_mb = int(end_mb - start_mb)
+
+          # Filter out free space regions < 2GB (2048 MB) - don't add to mapfile at all
+          if (size_mb < 2048) {
+            if (debug == "true") {
+              print "DEBUG AWK:   Skipping free space < 2GB: size=" size_mb "MB" > "/dev/stderr"
+            }
+            next
+          }
+
           if (debug == "true") {
             print "DEBUG AWK:   Outputting free space: " disk "|free|" start_mb "|" end_mb "|" size_mb "|free" > "/dev/stderr"
           }
