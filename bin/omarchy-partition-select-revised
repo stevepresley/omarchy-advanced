@@ -464,15 +464,14 @@ else
     debug_echo "DEBUG: Launching gum choose menu with ${#gum_options[@]} options"
 
     # Display gum menu with error message in header if validation failed
-    # Error message is embedded in header to display above menu options with gum formatting
+    # Error message is embedded in header to display above menu options
     header_text="Select install target (disk or partition)"
     if [[ -n "$error_message" ]]; then
-      formatted_error=$("gum" "style" "--bold" "--foreground" "1" "$error_message")
-      header_text="$formatted_error
+      header_text="$error_message
 $header_text"
     fi
 
-    selected=$("gum" "choose" "--header" "$header_text" "${gum_options[@]}")
+    selected=$("gum" "choose" "--header" "$header_text" "--padding" "0 2" "${gum_options[@]}")
 
     if [[ -z "$selected" ]]; then
       echo "ERROR: No selection made" >&2
