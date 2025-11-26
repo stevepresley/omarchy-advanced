@@ -916,6 +916,52 @@ $header_text" "--padding" "0 $PADDING_LEFT" "${gum_options[@]}")"
     fi
   done
 
-  # Output selected device
-  echo "$device"
+  # Gap #4: Call partition prep functions and return dual partition format (BOOT|INSTALL)
+  log_debug "Selected device: $device"
+
+  if [[ "$selected" =~ ^[[:space:]]*[├└] ]]; then
+    # User selected a partition - prepare it internally
+    log_debug "Partition selected: $device, preparing layout"
+    if prepare_partition_layout "$device"; then
+      log_debug "Partition layout prepared successfully"
+      # After prepare_partition_layout, find the newly created ESP and root partitions
+      # They should be the last two partitions on the disk
+      disk=$(lsblk -no PKNAME "$device" 2>/dev/null | head -n1)
+      if [[ -z "$disk" ]]; then
+        echo "Error: Failed to determine disk for partition $device" >&2
+        exit 1
+      fi
+
+      # Get all partitions and extract the last two (ESP and root)
+      mapfile -t partitions < <(lsblk -npo PATH "/dev/$disk" 2>/dev/null | grep -v '^/dev/'"$disk"'$')
+      if (( ${#partitions[@]} < 2 )); then
+        echo "Error: Failed to find newly created partitions on $disk" >&2
+        exit 1
+      fi
+
+      new_boot_partition="${partitions[-2]}"   # Second to last partition
+      new_root_partition="${partitions[-1]}"   # Last partition
+
+      log_debug "Returning new boot and root partitions: $new_boot_partition|$new_root_partition"
+      printf "%s|%s\n" "$new_boot_partition" "$new_root_partition"
+    else
+      echo "Error: Failed to prepare partition layout for $device. Check $CONFIG_LOG for details." >&2
+      exit 1
+    fi
+  else
+    # User selected a whole disk - prepare it internally
+    log_debug "Disk selected: $device, preparing layout"
+    disk_name="${device##*/}"  # Extract disk name from path (e.g., 'sdb' from '/dev/sdb')
+    if prepare_disk_layout "$disk_name"; then
+      log_debug "Disk layout prepared successfully"
+      # After prepare_disk_layout, get the newly created partitions
+      boot_partition="/dev/${disk_name}1"
+      root_partition="/dev/${disk_name}2"
+      log_debug "Returning boot and root partitions: $boot_partition|$root_partition"
+      printf "%s|%s\n" "$boot_partition" "$root_partition"
+    else
+      echo "Error: Failed to prepare disk layout for $device. Check $CONFIG_LOG for details." >&2
+      exit 1
+    fi
+  fi
 fi
