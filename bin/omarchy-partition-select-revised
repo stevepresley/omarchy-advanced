@@ -463,6 +463,12 @@ else
   while true; do
     debug_echo "DEBUG: Launching gum choose menu with ${#gum_options[@]} options"
 
+    # Display error message if validation failed on previous iteration
+    if [[ -n "$error_message" ]]; then
+      echo "$error_message" >&2
+      error_message=""
+    fi
+
     # Display gum menu and get user selection
     selected=$("gum" "choose" "--header" "Select install target (disk or partition)" "${gum_options[@]}")
 
