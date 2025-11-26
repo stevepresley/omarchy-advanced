@@ -1,0 +1,673 @@
+#!/bin/bash
+
+# Interactive selector that lists disks plus their partitions and returns the chosen device path.
+# Defaults to all block devices but accepts optional device arguments to limit the list.
+
+# set OMARCHY_PATH and source presentation helpers
+if [[ -z "${OMARCHY_PATH:-}" ]]; then
+  export OMARCHY_PATH="/root/omarchy"
+fi
+
+set -euo pipefail
+
+source "$OMARCHY_PATH/install/helpers/presentation.sh"
+error_message=""
+CONFIG_LOG="/tmp/partition-select.log"
+touch "$CONFIG_LOG" 2>/dev/null || true
+
+log_debug() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$CONFIG_LOG"
+}
+
+log_parted_output() {
+  local input="$1"
+  # First line is disk name, rest is parted output
+  local disk=$(echo "$input" | head -n1)
+  local parted_output=$(echo "$input" | tail -n+2)
+
+  log_debug "=== parted print free output for /dev/$disk ==="
+  echo "$parted_output" | while read line; do
+    log_debug "PARTED: $line"
+  done
+  log_debug "=== end parted output ==="
+}
+
+# === PARTITION PREP FUNCTIONS (copied from configurator) ===
+
+prepare_disk_for_repartitioning() {
+  local disk="$1"
+  log_debug "Detaching existing mappings on $disk"
+  {
+    echo "--- lsblk tree for /dev/$disk ---"
+    lsblk -lnpo NAME,TYPE,MOUNTPOINTS "/dev/$disk"
+    echo "--- /proc/swaps ---"
+    cat /proc/swaps
+  } >>"$CONFIG_LOG" 2>&1
+
+  while read -r child child_type; do
+    [[ -z "$child" ]] && continue
+    log_debug "Processing child $child (type=$child_type)"
+    case "$child_type" in
+      part)
+        if awk 'NR>1 {print $1}' /proc/swaps 2>/dev/null | grep -Fxq "$child"; then
+          log_debug "swapoff $child"
+          swapoff "$child" >>"$CONFIG_LOG" 2>&1 || log_debug "swapoff failed for $child"
+        fi
+        mapfile -t targets < <(findmnt -rn "$child" -o TARGET 2>/dev/null || true)
+        if ((${#targets[@]})); then
+          mapfile -t targets < <(printf '%s\n' "${targets[@]}" | awk 'NF' | sort -r)
+        fi
+        for target in "${targets[@]}"; do
+          [[ -z "$target" ]] && continue
+          log_debug "umount $target"
+          if ! umount "$target" >>"$CONFIG_LOG" 2>&1; then
+            log_debug "umount failed for $target, retrying with -R"
+            umount -R "$target" >>"$CONFIG_LOG" 2>&1 || log_debug "umount -R failed for $target"
+          fi
+        done
+        ;;
+      crypt)
+        mapfile -t targets < <(findmnt -rn "$child" -o TARGET 2>/dev/null || true)
+        if ((${#targets[@]})); then
+          mapfile -t targets < <(printf '%s\n' "${targets[@]}" | awk 'NF' | sort -r)
+        fi
+        for target in "${targets[@]}"; do
+          [[ -z "$target" ]] && continue
+          log_debug "umount $target (crypt)"
+          if ! umount "$target" >>"$CONFIG_LOG" 2>&1; then
+            log_debug "umount failed for $target, retrying with -R"
+            umount -R "$target" >>"$CONFIG_LOG" 2>&1 || log_debug "umount -R failed for $target"
+          fi
+        done
+        if command -v cryptsetup >/dev/null 2>&1; then
+          local mapper_name
+          mapper_name=$(lsblk -no NAME "$child" 2>/dev/null | head -n1)
+          if [[ -n "$mapper_name" ]]; then
+            log_debug "Closing LUKS mapping $mapper_name"
+            cryptsetup close "$mapper_name" >>"$CONFIG_LOG" 2>&1 || log_debug "Failed to close $mapper_name"
+          fi
+        fi
+        ;;
+      *)
+        log_debug "No cleanup actions for child type $child_type"
+        ;;
+    esac
+  done < <(lsblk -lnpo NAME,TYPE "/dev/$disk" | tail -n +2)
+
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm settle >>"$CONFIG_LOG" 2>&1 || true
+  fi
+}
+
+refresh_partition_table() {
+  local disk="$1"
+  log_debug "Refreshing partition table on $disk"
+  partprobe "/dev/$disk" >>"$CONFIG_LOG" 2>&1 || true
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm settle >>"$CONFIG_LOG" 2>&1 || true
+  fi
+}
+
+find_partition_boundaries() {
+  local disk="$1"
+  local is_empty_disk="$2"  # true for whole disk, false for partition replacement
+
+  # Output variables will be set as echo statements
+  local parted_output
+  local free_start
+  local free_end
+  local free_size_str
+  local free_size_num
+  local free_num
+  local esp_end_num
+  local esp_end
+  local root_end
+
+  if [[ "$is_empty_disk" == "true" ]]; then
+    # For empty disk, entire disk is free space (start=0, end=100%)
+    log_debug "Empty disk - using full disk boundaries for partitions"
+    free_start="0"
+    free_end="100%"
+    esp_end="2049MiB"
+    root_end="100%"
+  else
+    # Extract free space boundaries dynamically using parted print free
+    log_debug "Extracting free space boundaries from /dev/$disk"
+    log_debug "Running command: parted /dev/$disk print free"
+    parted_output=$(parted /dev/$disk print free 2>/dev/null)
+    log_parted_output "$disk
+$parted_output"
+
+    # Find the first free space region that is >= 2GB (2048MB)
+    free_start=""
+    free_end=""
+
+    while IFS=$'|' read -r free_start free_end free_size_str; do
+      if [[ -z "$free_start" ]]; then
+        continue
+      fi
+
+      # Extract numeric value and unit from size string
+      free_size_str=$(echo "$free_size_str" | xargs)
+      free_size_num=$(echo "$free_size_str" | grep -oE '^[0-9]+\.?[0-9]*')
+      free_unit=$(echo "$free_size_str" | grep -oE '[A-Z]+$')
+
+      # Convert to MB for comparison
+      case "$free_unit" in
+        GB)
+          free_size_num=$(echo "$free_size_num * 1024" | bc -l | awk '{printf "%.0f", $0}')
+          ;;
+        MB)
+          free_size_num=$(echo "$free_size_num" | awk '{printf "%.0f", $0}')
+          ;;
+        *)
+          free_size_num=$(echo "$free_size_num / 1024" | bc -l | awk '{printf "%.0f", $0}')
+          ;;
+      esac
+
+      log_debug "Found free space: $free_start to $free_end, size: $free_size_str (converted to ${free_size_num}MB)"
+
+      if (( free_size_num >= 2048 )); then
+        log_debug "Selected free space: $free_start to $free_end (${free_size_num}MB available)"
+        break
+      fi
+    done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}')
+
+    if [[ -z "$free_start" ]] || [[ -z "$free_end" ]]; then
+      echo "Error: No free space region with at least 2GB available found on $disk" >&2
+      log_debug "Failed to find 2GB+ free space region on $disk"
+      return 1
+    fi
+
+    # Calculate ESP end
+    free_num=$(echo "$free_start" | sed 's/[^0-9]//g')
+    esp_end_num=$((free_num + 2048))
+    esp_end="${esp_end_num}MB"
+    log_debug "Calculated ESP boundaries: $free_start to $esp_end"
+
+    # Determine root partition end boundary
+    local partitions_after_free_space
+    partitions_after_free_space=$(parted -s "/dev/$disk" print 2>/dev/null | awk -v free_end="$free_end" '
+      /^[[:space:]]*[0-9]+/ {
+        partition_end=$3
+        partition_end_num=partition_end
+        gsub(/[A-Za-z]+$/, "", partition_end_num)
+        free_end_num=free_end
+        gsub(/[A-Za-z]+$/, "", free_end_num)
+        if (partition_end_num + 0 > free_end_num + 0) {
+          print "yes"
+          exit
+        }
+      }
+    ')
+
+    if [[ -n "$partitions_after_free_space" ]]; then
+      root_end="$free_end"
+      log_debug "Partitions exist after free space - using free_end ($free_end) as root partition boundary"
+    else
+      root_end="100%"
+      log_debug "No partitions after free space - using disk end (100%) as root partition boundary"
+    fi
+  fi
+
+  # Output boundaries for caller to use
+  echo "$free_start|$esp_end|$root_end"
+}
+
+prepare_disk_layout() {
+  local disk="$1"
+  local boot_partition
+  local root_partition
+  local boundaries
+
+  prepare_disk_for_repartitioning "$disk"
+
+  log_debug "Creating ESP and root partitions on $disk"
+  if ! wipefs -a "/dev/$disk" >>"$CONFIG_LOG" 2>&1; then
+    log_debug "wipefs failed on $disk"
+    echo "Error: Failed to wipe disk signatures" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  if ! parted -s "/dev/$disk" mklabel gpt >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create GPT label" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  # Get partition boundaries - use true for empty disk
+  boundaries=$(find_partition_boundaries "$disk" "true") || return 1
+  IFS='|' read -r free_start esp_end root_end <<<"$boundaries"
+
+  log_debug "Creating ESP partition: $free_start to $esp_end"
+  if ! parted -s "/dev/$disk" mkpart primary fat32 "$free_start" "$esp_end" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create FAT32 boot partition" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  parted -s "/dev/$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to mark ESP partition" >&2; return 1; }
+  refresh_partition_table "$disk"
+
+  log_debug "Creating root partition: $esp_end to $root_end"
+  if ! parted -s "/dev/$disk" mkpart primary btrfs "$esp_end" "$root_end" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create root partition" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  log_debug "Created boot and root partitions on $disk"
+
+  # === FORMAT PARTITIONS AND CREATE SUBVOLUMES ===
+  boot_partition="/dev/${disk}1"
+  root_partition="/dev/${disk}2"
+
+  log_debug "Formatting ESP partition: $boot_partition"
+  if ! mkfs.fat -F 32 "$boot_partition" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to format ESP partition" >&2
+    return 1
+  fi
+
+  log_debug "Formatting root partition: $root_partition as Btrfs"
+  if ! mkfs.btrfs -f "$root_partition" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to format root partition as Btrfs" >&2
+    return 1
+  fi
+
+  # Create mount point
+  mkdir -p /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to create mount point" >&2; return 1; }
+
+  log_debug "Mounting root partition with compression"
+  if ! mount -o compress=zstd "$root_partition" /mnt/archinstall >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount root partition" >&2
+    return 1
+  fi
+
+  log_debug "Creating BTRFS subvolumes"
+  if ! btrfs subvolume create /mnt/archinstall/@ >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create @ subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! btrfs subvolume create /mnt/archinstall/@home >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create @home subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! btrfs subvolume create /mnt/archinstall/@log >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create @log subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! btrfs subvolume create /mnt/archinstall/@pkg >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create @pkg subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  log_debug "Unmounting to remount with subvolumes"
+  if ! umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to unmount root partition" >&2
+    return 1
+  fi
+
+  log_debug "Remounting with subvolumes"
+  if ! mount -o compress=zstd,subvol=@ "$root_partition" /mnt/archinstall >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount @ subvolume" >&2
+    return 1
+  fi
+
+  # Create subdirectories for other subvolumes
+  mkdir -p /mnt/archinstall/{home,var/log,var/cache/pacman/pkg} >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to create subdirectories" >&2; umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true; return 1; }
+
+  if ! mount -o compress=zstd,subvol=@home "$root_partition" /mnt/archinstall/home >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount @home subvolume" >&2
+    umount /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! mount -o compress=zstd,subvol=@log "$root_partition" /mnt/archinstall/var/log >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount @log subvolume" >&2
+    umount -R /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  if ! mount -o compress=zstd,subvol=@pkg "$root_partition" /mnt/archinstall/var/cache/pacman/pkg >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount @pkg subvolume" >&2
+    umount -R /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  log_debug "Mounting boot partition at /mnt/archinstall/boot"
+  mkdir -p /mnt/archinstall/boot >>"$CONFIG_LOG" 2>&1 || { echo "Error: Failed to create boot directory" >&2; umount -R /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true; return 1; }
+  if ! mount "$boot_partition" /mnt/archinstall/boot >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mount boot partition" >&2
+    umount -R /mnt/archinstall >>"$CONFIG_LOG" 2>&1 || true
+    return 1
+  fi
+
+  log_debug "All partitions formatted, subvolumes created, and mounted successfully"
+
+  # Final refresh to ensure all device nodes are properly settled before returning
+  # This ensures the configurator can access the mounted partitions without delay
+  refresh_partition_table "$disk"
+}
+
+prepare_partition_layout() {
+  local partition="$1"
+  local disk
+  local partnum
+  local boundaries
+  local free_start
+  local esp_end
+  local root_end
+
+  disk=$(lsblk -no PKNAME "$partition" 2>/dev/null | head -n1)
+  [[ -z "$disk" ]] && { echo "Error: Failed to determine disk for partition $partition" >&2; return 1; }
+
+  partnum="${partition##*[!0-9]}"
+  [[ -z "$partnum" ]] && { echo "Error: Failed to extract partition number from $partition" >&2; return 1; }
+
+  log_debug "Replacing selected partition with ESP + root partitions"
+
+  log_debug "Deleting partition $partnum from disk $disk"
+
+  prepare_disk_for_repartitioning "$disk"
+
+  if ! parted -s "/dev/$disk" rm "$partnum" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to delete partition $partition from $disk" >&2
+    return 1
+  fi
+  log_debug "Partition $partnum deleted successfully"
+
+  refresh_partition_table "$disk"
+
+  # Get partition boundaries using refactored function - use false for existing partitions
+  boundaries=$(find_partition_boundaries "$disk" "false") || return 1
+  IFS='|' read -r free_start esp_end root_end <<<"$boundaries"
+
+  log_debug "Creating new ESP partition on $disk"
+  if ! parted -s "/dev/$disk" mkpart primary fat32 "$free_start" "$esp_end" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create ESP partition on $disk" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  if ! parted -s "/dev/$disk" set 1 esp on >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to mark ESP partition" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  log_debug "Creating new root partition on $disk"
+  if ! parted -s "/dev/$disk" mkpart primary btrfs "$esp_end" "$root_end" >>"$CONFIG_LOG" 2>&1; then
+    echo "Error: Failed to create root partition on $disk" >&2
+    return 1
+  fi
+  refresh_partition_table "$disk"
+
+  log_debug "Successfully replaced partition with new ESP and root on $disk"
+}
+
+# === END PARTITION PREP FUNCTIONS ===
+
+if command -v gum >/dev/null 2>&1; then
+  selector_cmd=("gum" "choose" "--header" "Select install target (disk or partition)")
+else
+  echo "Error: gum is required for omarchy-partition-select" >&2
+  exit 1
+fi
+
+if ! command -v lsblk >/dev/null 2>&1; then
+  echo "Error: lsblk is required for omarchy-partition-select" >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq is required for omarchy-partition-select" >&2
+  exit 1
+fi
+
+# Allow passing specific block devices (useful for testing)
+if (($# > 0)); then
+  devices=("$@")
+else
+  mapfile -t devices < <(lsblk -dpno PATH | grep -E '/dev/(sd|hd|vd|nvme|mmcblk|xv)')
+fi
+
+if ((${#devices[@]} == 0)); then
+  echo "No block devices found." >&2
+  exit 1
+fi
+
+# Function to refresh and rebuild the device options menu
+rebuild_options_menu() {
+  # Refresh partition tables on all detected devices before rebuilding the menu
+  for device in "${devices[@]}"; do
+    disk_name="${device##*/}"
+    refresh_partition_table "$disk_name"
+  done
+
+  # Gather metadata for the requested devices using lsblk JSON for easier traversal
+  lsblk_columns="PATH,NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT,LABEL,MODEL,PARTLABEL,PKNAME"
+  lsblk_json=$(lsblk -J -o "$lsblk_columns" "${devices[@]}")
+
+  # Clear options array before refilling to prevent duplicates on subsequent rebuild calls
+  options=()
+
+  # Prepare formatted lines for gum choose
+  mapfile -t options < <(
+    jq -r '
+      def fmt_size($val):
+        if $val == null or $val == "" then "" else " (" + $val + ")" end;
+      def fmt_model($val):
+        if $val == null or $val == "" then "" else " - " + $val end;
+      def fmt_fs($part):
+        if $part.fstype != null and $part.fstype != "" then
+          ", " + $part.fstype
+          + (if $part.fstype == "crypto_LUKS" then " \u001b[31m(ENCRYPTED)\u001b[0m" else "" end)
+        else "" end;
+      def fmt_mount($part):
+        if $part.mountpoint != null and $part.mountpoint != "" then ", mounted at " + $part.mountpoint else "" end;
+      def fmt_label($part):
+        if $part.partlabel != null and $part.partlabel != "" then " [" + $part.partlabel + "]"
+        elif $part.label != null and $part.label != "" then " [" + $part.label + "]"
+        else "" end;
+      def fmt_size_warning($val):
+        if $val == null or $val == "" then ""
+        else
+          # Parse size string to bytes
+          if ($val | test("[0-9]+\\.?[0-9]*G")) then
+            ($val | scan("[0-9]+\\.?[0-9]*") | tonumber * 1024 * 1024 * 1024) as $bytes |
+            if $bytes < (16 * 1024 * 1024 * 1024) then " \u001b[31m[TOO SMALL - 16GB minimum required]\u001b[0m" else "" end
+          else ""
+          end
+         end;
+
+      .blockdevices[]
+      | select(.type == "disk")
+      | . as $disk
+      | ($disk.path + fmt_size($disk.size) + fmt_model($disk.model))
+      , (($disk.children // [])
+          | to_entries[]
+          | . as $entry
+          | $entry.value as $part
+          | ($disk.path) as $disk_path
+          | ($entry.key == ( ( ($disk.children // []) | length) - 1 )) as $is_last
+          | (if $is_last then "  └─ " else "  ├─ " end)
+            + ($part.path
+               + fmt_size($part.size)
+               + fmt_fs($part)
+               + fmt_mount($part)
+             + fmt_label($part)
+             + fmt_size_warning($part.size)))
+  ' <<<"$lsblk_json"
+  )
+
+  # Filter options to exclude partitions smaller than the minimum required size
+  # DISABLED: This filtering was removing small partitions from the menu entirely
+  # Instead, we show all partitions with warnings. The filtering logic was preventing
+  # users from seeing partitions < 14GB even though they had warning labels.
+  # local filtered_options=()
+  # local min_size_bytes=$((14 * 1024 * 1024 * 1024))
+  # for line in "${options[@]}"; do
+  #   device=$(printf "%s\n" "$line" | grep -oE '/dev/[a-z0-9]+' | tail -1)
+  #   if [[ "$line" =~ [└├] && -n "$device" ]]; then
+  #     size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
+  #     if (( size_bytes < min_size_bytes )); then
+  #       continue
+  #     fi
+  #   fi
+  #   filtered_options+=("$line")
+  # done
+  # options=("${filtered_options[@]}")
+
+  # === ADD FREE SPACE REGIONS TO OPTIONS ===
+  # Extract free space regions from each disk and add them to the menu
+  log_debug "Extracting free space regions for menu display"
+
+  local free_space_options=()
+  for disk in "${devices[@]}"; do
+    disk_name="${disk##*/}"
+    disk_path="/dev/$disk_name"
+
+    # Get free space regions from parted print free
+    local parted_output
+    parted_output=$(parted "$disk_path" print free 2>/dev/null)
+
+    # Extract free space regions
+    while IFS='|' read -r free_start free_end free_size_str; do
+      # Skip header lines and empty lines
+      if [[ -z "$free_start" ]] || [[ "$free_start" != *[0-9]* ]]; then
+        continue
+      fi
+
+      # Only process "Free Space" rows
+      if [[ ! "$free_start" =~ Free\ Space|[0-9] ]]; then
+        continue
+      fi
+
+      # Parse free space size
+      free_size_str=$(echo "$free_size_str" | xargs)
+
+      # Format the free space entry with tree prefix
+      # Note: We'll append these after the disk's partitions in final menu
+      free_space_options+=("$disk_path|$free_start|$free_end|$(printf "%s\n" "$free_size_str")")
+
+      log_debug "Found free space on $disk_path: $free_start to $free_end ($free_size_str)"
+    done < <(echo "$parted_output" | awk '/Free Space/ {print $1 "|" $2 "|" $3}')
+  done
+
+  # Append free space regions to options array with proper formatting
+  # For now, append at end - this could be enhanced to intersperse by disk
+  # Filter free space regions < 2GB (2048 MB) - too small to be useful
+  local min_free_space_mb=2048
+  for free_entry in "${free_space_options[@]}"; do
+    IFS='|' read -r disk_path free_start free_end free_size <<<"$free_entry"
+
+    # Parse size from string like "25.6 GiB" or "1024 MiB"
+    local free_size_mb=0
+    if [[ "$free_size" =~ ([0-9.]+)[[:space:]]*(GiB|GB|G) ]]; then
+      # Convert GiB/GB/G to MB
+      free_size_mb=$(printf "%.0f" "$(echo "${BASH_REMATCH[1]} * 1024" | bc)")
+    elif [[ "$free_size" =~ ([0-9.]+)[[:space:]]*(MiB|MB|M) ]]; then
+      # Already in MB
+      free_size_mb=$(printf "%.0f" "${BASH_REMATCH[1]}")
+    fi
+
+    # Only add free space regions that are >= 2GB (2048 MB)
+    if (( free_size_mb >= min_free_space_mb )); then
+      # Format: "  └─ (free space) SIZE" - using tree prefix like partitions
+      # Store disk info in the string for later extraction during selection
+      options+=("  └─ (free space) ($free_size) [START:$free_start|END:$free_end|DISK:$disk_path]")
+      log_debug "Added free space to menu: $free_size ($free_size_mb MB)"
+    else
+      log_debug "Skipped free space region < 2GB: $free_size ($free_size_mb MB)"
+    fi
+  done
+}
+
+# Build the initial options menu
+rebuild_options_menu
+
+if ((${#options[@]} == 0)); then
+  echo "No disks or partitions found to display." >&2
+  exit 1
+fi
+
+while true; do
+
+  # Rebuild the options menu to refresh block device list before each display
+  # This prevents stale lsblk data from showing duplicate entries
+  rebuild_options_menu
+
+  header_text="Select install target (disk or partition)"
+  selected="$("gum" "choose" "--header" "$error_message
+$header_text" "--padding" "0 $PADDING_LEFT" "${options[@]}")"
+
+  #selected="$("gum" "choose" "--padding" "1 $PADDING_LEFT" "${options[@]}")"
+  error_message=""
+  if [[ $? -ne 0 ]]; then
+    exit 1
+  fi
+  device=$(printf "%s\n" "$selected" | grep -oE '/dev/[a-z0-9]+' | tail -1)
+  partition_size_bytes=$(lsblk -dno SIZE -b "$device" 2>/dev/null | numfmt --from=iec 2>/dev/null || echo 0)
+  min_size_bytes=$((16 * 1024 * 1024 * 1024))
+  if (( partition_size_bytes >= min_size_bytes )); then
+    # Detect device type by examining the selected line format
+    # Disks: no tree prefix, partitions: have tree prefix (  ├─ or  └─)
+    if [[ "$selected" =~ ^[[:space:]]*[├└] ]]; then
+      # User selected a partition - prepare it internally
+      log_debug "Partition selected: $device, preparing layout"
+      if prepare_partition_layout "$device"; then
+        log_debug "Partition layout prepared successfully"
+        # After prepare_partition_layout, find the newly created ESP and root partitions
+        # They should be the last two partitions on the disk
+        disk=$(lsblk -no PKNAME "$device" 2>/dev/null | head -n1)
+        if [[ -z "$disk" ]]; then
+          error_message="Error: Failed to determine disk for partition $device"
+          continue
+        fi
+
+        # Get all partitions and extract the last two (ESP and root)
+        mapfile -t partitions < <(lsblk -npo PATH "/dev/$disk" 2>/dev/null | grep -v '^/dev/'"$disk"'$')
+        if (( ${#partitions[@]} < 2 )); then
+          error_message="Error: Failed to find newly created partitions on $disk"
+          continue
+        fi
+
+        new_boot_partition="${partitions[-2]}"   # Second to last partition
+        new_root_partition="${partitions[-1]}"   # Last partition
+
+        log_debug "Returning new boot and root partitions: $new_boot_partition|$new_root_partition"
+        printf "%s|%s\n" "$new_boot_partition" "$new_root_partition"
+        break
+      else
+        error_message="Error: Failed to prepare partition layout for $device. Check $CONFIG_LOG for details."
+      fi
+    else
+      # User selected a whole disk - prepare it internally
+      log_debug "Disk selected: $device, preparing layout"
+      disk_name="${device##*/}"  # Extract disk name from path (e.g., 'sdb' from '/dev/sdb')
+      if prepare_disk_layout "$disk_name"; then
+        log_debug "Disk layout prepared successfully"
+        # After prepare_disk_layout, get the newly created partitions
+        boot_partition="/dev/${disk_name}1"
+        root_partition="/dev/${disk_name}2"
+        log_debug "Returning boot and root partitions: $boot_partition|$root_partition"
+        printf "%s|%s\n" "$boot_partition" "$root_partition"
+        break
+      else
+        error_message="Error: Failed to prepare disk layout for $device. Check $CONFIG_LOG for details."
+      fi
+    fi
+  else
+   # partition_size_display=$(num fmt --to=iec-i --suffix=B $partition_size_bytes 2>/dev/null || echo "unknown size")
+   # gum style --bold --foreground 1 "Error: $device is $partition_size_display.
+   error_message="Error: $device is too small ($(numfmt --to=iec-i --suffix=B $partition_size_bytes) bytes).  Minimum required is 16GB. Please select a different partition."
+  fi
+done
